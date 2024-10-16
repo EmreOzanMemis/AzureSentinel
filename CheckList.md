@@ -15,7 +15,7 @@ Microsoft Defender for Endpoint: Cihaz güvenlik verilerini toplayın.
 Azure Activity: Azure kaynaklarını ve değişikliklerini izleyin.
 Windows Security Events: Sunucu ve istemci loglarını izleyin.
 
-     Diğer Üçüncü Parti Kaynaklar: AWS CloudTrail, Palo Alto Networks vb. dış kaynakları bağladınız mı?
+Diğer Üçüncü Parti Kaynaklar: AWS CloudTrail, Palo Alto Networks vb. dış kaynakları bağladınız mı?
 
 2. Tehdit Algılama ve Uyarı (Detection & Alerts)
 
