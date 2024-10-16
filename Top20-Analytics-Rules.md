@@ -177,30 +177,207 @@ Yapılandırma: IP adresi ve bölge bilgisi loglarından analiz edilir. Normalde
 Açıklama: Bir IP adresinden birçok başarısız RDP giriş denemesi yapıldığında uyarı verir.
 Yapılandırma: Belirli bir zaman diliminde belirli bir IP'den gelen başarısız RDP giriş denemelerini izler.
 
-8. Suspicious Administrative Activity (Şüpheli Yönetici Faaliyetleri)
+KQL Sorgusu
+```
+SecurityEvent
+| where EventID == 4625  // Başarısız oturum açma olaylarını izler (4625 EventID RDP başarısız oturum açma)
+| where TimeGenerated >= ago(1h)  // Son 1 saatlik giriş denemelerini izler
+| where LogonType == 10  // LogonType 10, RDP oturumlarını temsil eder
+| summarize FailedAttempts = count() by IpAddress, Account, Computer
+| where FailedAttempts > 5  // 1 saat içinde 5'ten fazla başarısız deneme varsa
+| project TimeGenerated, IpAddress, Account, Computer, FailedAttempts
+```
+Sorgu Açıklaması:
 
-    Açıklama: Yönetici yetkilerine sahip kullanıcılar tarafından yapılan şüpheli işlemler tespit edildiğinde uyarı verir.
-    Yapılandırma: Yöneticilerin gerçekleştirdiği olağandışı işlemleri (örn. birden fazla hesap oluşturma) takip eder.
+  SecurityEvent: Windows güvenlik olaylarını toplamak için kullanılan tablo.
+  EventID == 4625: Bu EventID, başarısız oturum açma denemelerini temsil eder. Brute force saldırıları genellikle başarısız giriş denemelerinden oluşur.
+  TimeGenerated >= ago(1h): Son 1 saat içindeki giriş denemelerini filtreler.
+  LogonType == 10: LogonType 10, uzak masaüstü protokolü (RDP) üzerinden yapılan oturum açma denemelerini belirtir.
+  summarize FailedAttempts = count() by IpAddress, Account, Computer: Belirli bir IP adresi, kullanıcı hesabı ve bilgisayara göre başarısız giriş denemelerini sayar.
+  where FailedAttempts > 5: Aynı IP adresinden 5'ten fazla başarısız giriş denemesi olduğunda sonuç döner. Eşik değer ihtiyaca göre ayarlanabilir.
+  project: İlgili sütunları (zaman, IP adresi, hesap, bilgisayar adı ve başarısız giriş sayısı) görüntüler.
 
-9. Unusual File Sharing Activity (Olağandışı Dosya Paylaşımı)
+Kullanım Senaryosu:
 
-    Açıklama: Kısa sürede birden fazla dosya paylaşımı yapıldığında uyarı verir.
-    Yapılandırma: SharePoint ve OneDrive logları üzerinden çok sayıda dosya paylaşımı tespit edilir.
+  IpAddress: Brute force saldırısını gerçekleştiren kaynağın IP adresi.
+  Account: Saldırganın oturum açmaya çalıştığı kullanıcı hesabı.
+  Computer: Saldırının hedeflendiği bilgisayar adı.
+  FailedAttempts: Belirlenen zaman diliminde (1 saat) yapılan başarısız giriş denemelerinin sayısı.
 
-10. New User Account Creation (Yeni Kullanıcı Hesabı Oluşturulması)
+Uyarı Tetikleme:
 
-    Açıklama: Sistem üzerinde yeni bir kullanıcı hesabı oluşturulduğunda uyarı verir.
-    Yapılandırma: Azure Active Directory logları izlenir ve her yeni hesap oluşturulduğunda uyarı tetiklenir.
+Bu KQL sorgusu, Azure Sentinel'de bir analitik kural olarak yapılandırıldığında, aynı IP adresinden belirli bir süre (örneğin 1 saat) içerisinde çok sayıda başarısız RDP giriş denemesi yapıldığında uyarı oluşturur. Bu tür bir saldırı, brute force saldırılarının yaygın bir göstergesidir ve erken müdahale edilmesi gereken bir güvenlik olayıdır.
 
-11. Elevated Privileges Assignment (Yüksek Yetki Ataması)
 
-    Açıklama: Bir kullanıcıya yönetici yetkisi atandığında uyarı verir.
-    Yapılandırma: Yetki atama işlemlerinin logları incelenir ve yöneticilik yetkisi verildiğinde tetiklenir.
 
-12. Malicious URL Detected (Zararlı URL Tespit Edildi)
+# 7. Suspicious Administrative Activity (Şüpheli Yönetici Faaliyetleri)
 
-    Açıklama: Kullanıcının kötü amaçlı bir URL'ye erişmeye çalışması durumunda uyarı verir.
-    Yapılandırma: DNS logları ve güvenlik kaynaklarından gelen tehdit istihbaratını kullanarak zararlı URL'ler izlenir.
+  Açıklama: Yönetici yetkilerine sahip kullanıcılar tarafından yapılan şüpheli işlemler tespit edildiğinde uyarı verir.
+  Yapılandırma: Yöneticilerin gerçekleştirdiği olağandışı işlemleri (örn. birden fazla hesap oluşturma) takip eder.
+
+KQL Sorgusu
+```
+AuditLogs
+| where OperationName == "Add user"  // Kullanıcı ekleme işlemi
+| where TimeGenerated >= ago(1h)  // Son 1 saat içindeki işlemleri izler
+| where InitiatedBy.role == "Global Administrator" or InitiatedBy.role == "User Administrator"  // Yönetici rolüne sahip kullanıcılar
+| summarize UserCreations = count() by InitiatedBy.userPrincipalName, InitiatedBy.role
+| where UserCreations > 3  // 1 saat içinde 3'ten fazla kullanıcı ekleme varsa
+| project TimeGenerated, InitiatedBy.userPrincipalName, InitiatedBy.role, UserCreations
+```
+
+Sorgu Açıklaması:
+
+  AuditLogs: Azure Active Directory’de gerçekleştirilen işlemleri izleyen tablo. Yönetici faaliyetleri burada loglanır.
+  OperationName == "Add user": Kullanıcı ekleme işlemlerini filtreler.
+  TimeGenerated >= ago(1h): Son 1 saat içindeki işlemleri izler.
+  InitiatedBy.role == "Global Administrator" or InitiatedBy.role == "User Administrator": İşlemi başlatan kullanıcının rolünü kontrol eder. Sadece Global Administrator veya User Administrator gibi yönetici rolleriyle yapılan işlemleri izler.
+  summarize UserCreations = count() by InitiatedBy.userPrincipalName, InitiatedBy.role: Her bir yönetici tarafından kaç kullanıcı oluşturulduğunu toplar.
+  where UserCreations > 3: 1 saat içinde 3’ten fazla kullanıcı ekleyen yöneticileri filtreler. (Bu eşik ihtiyaca göre ayarlanabilir.)
+  project: Zaman, yönetici kullanıcı adı, rol ve kullanıcı oluşturma sayısını gösterir.
+
+Senaryolar:
+
+  userPrincipalName: Yönetici yetkisine sahip kullanıcı adı.
+  role: Yöneticinin sahip olduğu rol (örn. Global Administrator, User Administrator).
+  UserCreations: Belirtilen zaman diliminde yönetici tarafından eklenen kullanıcı sayısı.
+  TimeGenerated: İşlemin gerçekleştiği zaman.
+
+# 8. Unusual File Sharing Activity (Olağandışı Dosya Paylaşımı)
+
+  Açıklama: Kısa sürede birden fazla dosya paylaşımı yapıldığında uyarı verir.
+  Yapılandırma: SharePoint ve OneDrive logları üzerinden çok sayıda dosya paylaşımı tespit edilir.
+
+KQL Sorgusu
+```
+OfficeActivity
+| where OfficeWorkload == "SharePoint" or OfficeWorkload == "OneDrive"  // SharePoint veya OneDrive işlemlerini filtreler
+| where Operation == "FileShared"  // Dosya paylaşım işlemlerini izler
+| where TimeGenerated >= ago(1h)  // Son 1 saat içindeki işlemleri izler
+| summarize ShareCount = count() by UserId, OfficeWorkload, ClientIP
+| where ShareCount > 10  // 1 saat içinde 10'dan fazla dosya paylaşımı varsa
+| project TimeGenerated, UserId, OfficeWorkload, ClientIP, ShareCount
+```
+Sorgu Açıklaması:
+
+  OfficeActivity: Office 365 hizmetlerine ait logları içerir. SharePoint ve OneDrive etkinlikleri burada kaydedilir.
+  OfficeWorkload == "SharePoint" or OfficeWorkload == "OneDrive": SharePoint veya OneDrive ile ilişkili işlemleri filtreler.
+  Operation == "FileShared": Sadece dosya paylaşım işlemlerini izler.
+  TimeGenerated >= ago(1h): Son 1 saat içindeki dosya paylaşım etkinliklerini alır.
+  summarize ShareCount = count() by UserId, OfficeWorkload, ClientIP: Kullanıcı kimliği (UserId), hizmet (OfficeWorkload: SharePoint veya OneDrive) ve IP adresine göre dosya paylaşım sayısını toplar.
+  where ShareCount > 10: 1 saat içinde 10’dan fazla dosya paylaşımı varsa sonucu filtreler. (Bu eşik ihtiyaca göre ayarlanabilir.)
+  project: İlgili bilgileri (zaman, kullanıcı kimliği, hizmet, IP adresi, paylaşım sayısı) gösterir.
+
+Kullanım Senaryosu:
+
+  UserId: Dosya paylaşımı yapan kullanıcının kimliği.
+  OfficeWorkload: Dosya paylaşımının yapıldığı hizmet (SharePoint veya OneDrive).
+  ClientIP: Dosya paylaşımının yapıldığı cihazın IP adresi.
+  ShareCount: Kısa bir süre içinde yapılan dosya paylaşım sayısı.
+
+Olası Şüpheli Durumlar:
+
+  Bir kullanıcı kısa bir süre içinde olağandışı sayıda dosya paylaştığında, bu sorgu bu kullanıcıyı işaret eder. Bu, bir veri ihlalinin veya yetkisiz dosya paylaşımının işareti olabilir.
+
+Uyarı Tetikleme:
+
+Bu KQL sorgusu, Azure Sentinel üzerinde kısa süre içinde çok sayıda dosya paylaşım etkinliğini izler. Bir kullanıcının belirli bir zaman diliminde (örneğin 1 saat) olağandışı sayıda dosya paylaşımı yapması durumunda, bu sorgu şüpheli bir durumu tespit ederek uyarı tetiklenmesini sağlar.
+
+Bu kuralı Azure Sentinel üzerinde bir analitik kural olarak yapılandırarak, SharePoint ve OneDrive üzerindeki şüpheli dosya paylaşım etkinliklerini izleyebilirsiniz.
+
+
+# 9. New User Account Creation (Yeni Kullanıcı Hesabı Oluşturulması)
+
+  Açıklama: Sistem üzerinde yeni bir kullanıcı hesabı oluşturulduğunda uyarı verir.
+  Yapılandırma: Azure Active Directory logları izlenir ve her yeni hesap oluşturulduğunda uyarı tetiklenir.
+
+KQL Sorgusu
+```
+AuditLogs
+| where OperationName == "Add user"  // Kullanıcı ekleme işlemini izler
+| where Result == "success"  // Başarılı işlemleri filtreler
+| where TimeGenerated >= ago(1h)  // Son 1 saat içindeki işlemleri izler
+| project TimeGenerated, TargetResources.displayName, InitiatedBy.userPrincipalName, InitiatedBy.role, TargetResources.userPrincipalName
+```
+Sorgu Açıklaması:
+
+  AuditLogs: Azure Active Directory üzerindeki tüm denetim ve yönetim işlemlerini içeren tablo.
+  OperationName == "Add user": Yeni bir kullanıcı hesabı ekleme işlemini izler.
+  Result == "success": Sadece başarılı kullanıcı ekleme işlemlerini filtreler.
+  TimeGenerated >= ago(1h): Son 1 saat içinde yapılan kullanıcı ekleme işlemlerini getirir.
+  project: İlgili sütunları seçer:
+        TimeGenerated: Hesabın oluşturulduğu zamanı gösterir.
+        TargetResources.displayName: Yeni oluşturulan kullanıcının adını gösterir.
+        InitiatedBy.userPrincipalName: Kullanıcıyı oluşturan yönetici ya da kullanıcı.
+        InitiatedBy.role: Kullanıcıyı oluşturan kişinin rolü.
+        TargetResources.userPrincipalName: Yeni kullanıcının kullanıcı adı.
+
+Kullanım Senaryosu:
+
+  TargetResources.displayName: Yeni oluşturulan kullanıcı hesabının adı.
+  InitiatedBy.userPrincipalName: Yeni kullanıcıyı oluşturan kişi veya yönetici.
+  InitiatedBy.role: Kullanıcıyı oluşturan kişinin rolü (örneğin, Global Administrator).
+  TimeGenerated: Kullanıcı oluşturulma zamanı.
+
+Olası Şüpheli Durumlar:
+
+  Yetkisiz bir yönetici veya beklenmedik bir zaman diliminde yeni bir kullanıcı oluşturulduğunda şüphe uyandırabilir.
+  Yönetici hesapları üzerinden izinsiz kullanıcı hesapları oluşturulması, kötü amaçlı bir saldırganın kimlik bilgilerine erişmiş olabileceğini gösterebilir.
+
+Uyarı Tetikleme:
+
+Bu KQL sorgusu, Azure Sentinel'de yeni bir kullanıcı hesabı oluşturulduğunda uyarı vermek için kullanılabilir. Azure AD'de her yeni hesap oluşturulduğunda bu sorgu tetiklenir ve güvenlik ekiplerine bilgi sağlar.
+
+Bu kural, Sentinel’de bir analitik kural olarak yapılandırıldığında, beklenmedik kullanıcı hesaplarının oluşturulmasını tespit ederek hızlı bir şekilde güvenlik ihlallerine yanıt vermenizi sağlar.
+
+# 10. Elevated Privileges Assignment (Yüksek Yetki Ataması)
+
+  Açıklama: Bir kullanıcıya yönetici yetkisi atandığında uyarı verir.
+  Yapılandırma: Yetki atama işlemlerinin logları incelenir ve yöneticilik yetkisi verildiğinde tetiklenir.
+
+KQL Sorgusu
+```
+AuditLogs
+| where OperationName == "Add member to role"  // Yetki atama işlemlerini izler
+| where Result == "success"  // Başarılı atamaları filtreler
+| where TimeGenerated >= ago(1h)  // Son 1 saat içindeki işlemleri izler
+| where TargetResources[0].modifiedProperties[0].newValue contains "Admin"  // Atanan rolün yönetici yetkisi içerdiğini kontrol eder
+| project TimeGenerated, InitiatedBy.userPrincipalName, InitiatedBy.role, TargetResources[0].displayName, TargetResources[0].modifiedProperties[0].newValue
+```
+Sorgu Açıklaması:
+
+  AuditLogs: Azure Active Directory üzerindeki denetim ve yönetim işlemlerini izler.
+  OperationName == "Add member to role": Bir kullanıcının bir role atandığını izler. Yönetici yetkisi atama işlemleri bu olay ile gerçekleşir.
+  Result == "success": Başarılı yetki atama işlemlerini filtreler.
+  TimeGenerated >= ago(1h): Son 1 saat içinde gerçekleşen yetki atama işlemlerini alır.
+  TargetResources[0].modifiedProperties[0].newValue contains "Admin": Atanan rolün adında "Admin" ifadesi geçip geçmediğini kontrol eder. Bu, kullanıcının bir yönetici rolüne (örneğin Global Admin, User Admin vb.) atandığını tespit eder.
+  project: İlgili bilgileri seçer:
+        TimeGenerated: Yetki atama işleminin gerçekleştiği zaman.
+        InitiatedBy.userPrincipalName: Yetki atamasını yapan kişi.
+        InitiatedBy.role: Yetki atamasını yapan kişinin rolü.
+        TargetResources[0].displayName: Yetki ataması yapılan kullanıcının adı.
+        TargetResources[0].modifiedProperties[0].newValue: Atanan yeni rol.
+
+Kullanım Senaryosu:
+
+  InitiatedBy.userPrincipalName: Yetki atama işlemini gerçekleştiren kişi.
+  InitiatedBy.role: Yetki atamasını yapan kullanıcının rolü.
+  TargetResources[0].displayName: Yüksek yetki verilen kullanıcının adı.
+  newValue: Yeni atanmış olan yönetici rolü (örn. Global Admin, User Admin).
+
+Olası Şüpheli Durumlar:
+
+  Bir kullanıcının yüksek yetki (admin) alması, özellikle beklenmedik bir zamanda veya yetkisiz kişilerce yapıldığında dikkat edilmesi gereken bir güvenlik olayıdır.
+  Bir saldırgan, sistemdeki başka bir kullanıcıya yönetici yetkisi vererek sistemde daha geniş erişim elde etmeye çalışabilir.
+
+Uyarı Tetikleme:
+
+Bu KQL sorgusu, yönetici yetkisi atamaları izleyerek Sentinel üzerinde bir analitik kural olarak kullanılabilir. Bir kullanıcıya admin rolü atandığında bu sorgu çalışır ve yetki atama işlemiyle ilgili detayları gösterir. Azure Sentinel üzerinde bu kural yapılandırıldığında, yüksek yetki atamaları sırasında güvenlik ekiplerine hızlı bir şekilde bilgi verir ve olası tehditlere karşı erken müdahale imkanı sağlar.
+
+# 12. Malicious URL Detected (Zararlı URL Tespit Edildi)
+
+  Açıklama: Kullanıcının kötü amaçlı bir URL'ye erişmeye çalışması durumunda uyarı verir.
+  Yapılandırma: DNS logları ve güvenlik kaynaklarından gelen tehdit istihbaratını kullanarak zararlı URL'ler izlenir.
 
 13. Unusual Outbound Traffic (Olağandışı Çıkış Trafiği)
 
