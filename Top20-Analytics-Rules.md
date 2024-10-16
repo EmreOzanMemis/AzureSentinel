@@ -615,20 +615,148 @@ Bu KQL sorgusu, Azure Sentinel üzerinde Azure kaynaklarının silinme olayları
   Açıklama: Azure üzerinde olağandışı etkinlikler tespit edildiğinde uyarı verir.
   Yapılandırma: Azure kaynağı üzerindeki işlem logları analiz edilerek, anormal etkinlikler tespit edilir.
 
-18. Email Forwarding Rules Added (E-posta Yönlendirme Kuralları Eklenmesi)
+KQL Sorgusu
+```
+AzureActivity
+| where TimeGenerated >= ago(1d)  // Son 24 saat içindeki etkinlikleri alır
+| where OperationNameValue contains "write" or OperationNameValue contains "delete"  // Kaynak üzerinde yazma veya silme işlemlerini izler
+| summarize Count = count() by Caller, ResourceId, OperationNameValue, bin(TimeGenerated, 1h)
+| where Count > 5  // 1 saat içinde 5'ten fazla işlem varsa olağandışı kabul edilir
+| project TimeGenerated, Caller, ResourceId, OperationNameValue, Count
+```
 
-    Açıklama: Bir kullanıcının e-postalarını başka bir hesaba yönlendirme kuralı eklenirse uyarı verir.
-    Yapılandırma: Office 365 loglarında yeni yönlendirme kuralları eklendiğinde tespit edilir.
+Sorgu Açıklaması:
 
-19. Suspicious Process Execution (Şüpheli Süreç Çalıştırma)
+  AzureActivity: Azure'daki kaynaklar üzerinde yapılan tüm işlemleri (oluşturma, değiştirme, silme vb.) içeren tablo.
+  TimeGenerated >= ago(1d): Son 24 saat içinde gerçekleşen tüm Azure etkinliklerini izler.
+  OperationNameValue contains "write" or OperationNameValue contains "delete": Kaynaklar üzerindeki yazma (kaynak oluşturma veya güncelleme) ve silme işlemlerini filtreler.
+  summarize Count = count() by Caller, ResourceId, OperationNameValue, bin(TimeGenerated, 1h): Aynı kullanıcı tarafından 1 saat içinde yapılan işlemlerin sayısını gruplar.
+  where Count > 5: 1 saat içinde 5'ten fazla yazma veya silme işlemi yapılırsa bu olağandışı bir durum olarak kabul edilir.
+  project: İlgili bilgileri seçer:
+      TimeGenerated: İşlemin gerçekleştiği zaman.
+      Caller: Kaynağı değiştiren kişi ya da hizmet.
+      ResourceId: Etkinliğin hedefi olan Azure kaynağının kimliği.
+      OperationNameValue: Gerçekleştirilen işlemin türü (yazma veya silme).
+      Count: İşlemin kaç defa tekrarlandığını gösterir.
 
-    Açıklama: Şüpheli bir uygulama veya süreç çalıştırıldığında uyarı verir.
-    Yapılandırma: Windows Event Log'larından veya endpoint güvenlik verilerinden süreç yürütmeleri izlenir.
+Kullanım Senaryosu:
 
-20. Data Exfiltration Detection (Veri Sızdırma Tespiti)
+  Caller: Kaynak üzerinde işlemi gerçekleştiren kişi ya da hizmet hesabı.
+  ResourceId: İşlemin yapıldığı Azure kaynağı.
+  OperationNameValue: İşlemin türü (örn. yazma veya silme).
+  Count: Kısa süre içinde yapılan benzer işlemlerin sayısı.
 
-    Açıklama: Şüpheli veri sızdırma faaliyetleri tespit edildiğinde uyarı verir.
-    Yapılandırma: Ağ trafiği ve dosya hareketleri izlenerek büyük veri çıkışı tespit edilir.
+Olası Şüpheli Durumlar:
+
+  Bir Azure kaynağı üzerinde kısa süre içinde çok fazla işlem yapılması, yetkisiz bir değişiklik girişimini veya hatalı bir yapılandırmayı işaret edebilir.
+  Aynı kaynak üzerinde çok fazla yazma veya silme işlemi, kaynak manipülasyonu veya veri ihlali olabileceği anlamına gelir.
+
+Uyarı Tetikleme:
+
+Bu KQL sorgusu, Azure Sentinel'de olağandışı Azure kaynak etkinliklerini izlemek için kullanılır. Bir kaynak üzerinde olağandışı yoğunlukta işlemler (örneğin, sürekli silme veya değiştirme) tespit edildiğinde sorgu tetiklenir ve uyarı oluşturur. Bu sayede güvenlik ekipleri, anormal etkinlikler veya yetkisiz değişikliklere hızlı bir şekilde yanıt verebilir.
+
+
+# 17. Email Forwarding Rules Added (E-posta Yönlendirme Kuralları Eklenmesi)
+
+  Açıklama: Bir kullanıcının e-postalarını başka bir hesaba yönlendirme kuralı eklenirse uyarı verir.
+  Yapılandırma: Office 365 loglarında yeni yönlendirme kuralları eklendiğinde tespit edilir.
+
+KQL Sorgusu
+```
+OfficeActivity
+| where OfficeWorkload == "Exchange"  // Exchange aktivitelerini izler
+| where Operation == "New-InboxRule"  // Yeni e-posta yönlendirme kuralı eklenmesini filtreler
+| where Parameters contains "ForwardTo" or Parameters contains "RedirectTo"  // Yönlendirme veya yönlendirme kurallarını filtreler
+| where TimeGenerated >= ago(1d)  // Son 24 saatteki olayları izler
+| project TimeGenerated, UserId, Operation, Parameters, ClientIP
+```
+Sorgu Açıklaması:
+
+  OfficeActivity: Office 365 etkinliklerini izleyen tablo. E-posta yönlendirme kuralları gibi olaylar burada kaydedilir.
+  OfficeWorkload == "Exchange": Exchange Online üzerindeki etkinlikleri izler (e-posta işlemleri).
+  Operation == "New-InboxRule": Yeni bir e-posta yönlendirme veya gelen kutusu kuralı oluşturulduğunda tetiklenir.
+  Parameters contains "ForwardTo" or Parameters contains "RedirectTo": Gelen kutusu kurallarında özellikle e-postaların başka bir hesaba yönlendirilmesi veya yönlendirilme kurallarını filtreler.
+  TimeGenerated >= ago(1d): Son 24 saatte yapılan işlemleri getirir.
+  project: İlgili sütunları seçer:
+        TimeGenerated: Kuralın ne zaman eklendiğini gösterir.
+        UserId: Yönlendirme kuralını ekleyen kullanıcının kimliği.
+        Operation: Gerçekleştirilen işlem (örneğin, yeni kural ekleme).
+        Parameters: Yönlendirme kuralına ilişkin detaylar (hangi e-posta adresine yönlendirme yapıldığı).
+        ClientIP: Kuralın hangi IP adresinden eklenmiş olduğunu gösterir.
+
+Kullanım Senaryosu:
+
+  UserId: Yönlendirme kuralını ekleyen kullanıcının kimliği.
+  Operation: Gerçekleştirilen işlem (yeni gelen kutusu kuralı ekleme).
+  Parameters: Yönlendirme veya yönlendirme kuralına ilişkin ayrıntılar.
+  ClientIP: Yönlendirme kuralını ekleyen kullanıcının IP adresi.
+
+Olası Şüpheli Durumlar:
+
+  Bir kullanıcının e-posta yönlendirme kuralı eklemesi, izinsiz bilgi paylaşımının veya veri ihlalinin bir göstergesi olabilir.
+  E-posta yönlendirme kurallarının eklenmesi, özellikle yönlendirme bir dış hesaba yapılıyorsa, veri sızıntısına veya hesap ele geçirme girişimlerine işaret edebilir.
+
+Uyarı Tetikleme:
+
+Bu KQL sorgusu, e-posta yönlendirme kurallarının eklenmesi gibi kritik olayları izlemek için kullanılır. Eğer bir kullanıcı kendi hesabı üzerinde bir e-posta yönlendirme kuralı eklerse veya bu tür bir kural dışarıya bilgi sızdırmak amacıyla kullanılırsa, bu sorgu tetiklenir ve Azure Sentinel üzerinde bir uyarı oluşturur. Bu sayede güvenlik ekipleri, yetkisiz bilgi paylaşımı girişimlerine karşı hızlı bir şekilde önlem alabilir.
+
+
+# 18. Suspicious Process Execution (Şüpheli Süreç Çalıştırma)
+
+  Açıklama: Şüpheli bir uygulama veya süreç çalıştırıldığında uyarı verir.
+  Yapılandırma: Windows Event Log'larından veya endpoint güvenlik verilerinden süreç yürütmeleri izlenir.
+
+KQL Sorgusu
+```
+SecurityEvent
+| where EventID == 4688  // Süreç başlatma olaylarını izler (Process Creation Event)
+| where TimeGenerated >= ago(1h)  // Son 1 saat içindeki süreç başlatma işlemlerini izler
+| where NewProcessName has_any ("powershell.exe", "cmd.exe", "wscript.exe", "cscript.exe", "mshta.exe")  // Şüpheli süreç isimlerini filtreler
+| where CommandLine contains_any ("-enc", "Invoke-Mimikatz", "Invoke-Expression", "DownloadString", "IEX")  // Şüpheli komut satırı parametrelerini izler
+| project TimeGenerated, Account, Computer, NewProcessName, CommandLine, ParentProcessName
+```
+
+Sorgu Açıklaması:
+
+  SecurityEvent: Windows güvenlik olaylarını izleyen tablo.
+  EventID == 4688: Bu Event ID, bir süreç başlatıldığında kaydedilen Windows olayıdır (Process Creation Event).
+  TimeGenerated >= ago(1h): Son 1 saat içinde başlatılan süreçleri filtreler.
+  NewProcessName has_any ("powershell.exe", "cmd.exe", "wscript.exe", "cscript.exe", "mshta.exe"): Yaygın olarak kötü niyetli aktivitelerde kullanılan süreçleri filtreler (örneğin, PowerShell, Komut İstemi, Windows Script Host).
+  CommandLine contains_any ("-enc", "Invoke-Mimikatz", "Invoke-Expression", "DownloadString", "IEX"): Komut satırında şüpheli parametreleri izler. Özellikle Mimikatz gibi zararlı yazılımların çalıştırılmasını sağlayan veya şüpheli komutların gizlenmesini içeren işlemler izlenir.
+    project: İlgili bilgileri seçer:
+        TimeGenerated: Sürecin başlatıldığı zamanı gösterir.
+        Account: Süreci başlatan kullanıcının hesabı.
+        Computer: Sürecin çalıştırıldığı bilgisayar.
+        NewProcessName: Başlatılan yeni sürecin adı.
+        CommandLine: Sürecin çalıştırıldığı komut satırı.
+        ParentProcessName: Süreci başlatan ana sürecin adı.
+
+Kullanım Senaryosu:
+
+  NewProcessName: Şüpheli süreç olarak değerlendirilen ve başlatılan uygulamanın adı.
+  CommandLine: Sürecin nasıl başlatıldığına dair komut satırı parametreleri.
+  ParentProcessName: Şüpheli süreci başlatan ana süreç. Bu, sürecin daha önceki işlemlerden mi türediğini anlamak için kullanılır.
+  Account: Süreci çalıştıran kullanıcının hesabı.
+  Computer: Sürecin çalıştırıldığı cihaz.
+
+Olası Şüpheli Durumlar:
+
+  PowerShell veya Komut İstemi gibi araçlar, kötü niyetli yazılımlar tarafından kullanılabilir. Özellikle base64 ile şifrelenmiş komutlar veya Invoke-Mimikatz gibi zararlı komutlar şüpheli kabul edilir.
+  Windows Script Host (wscript.exe, cscript.exe) ve mshta.exe gibi araçlar da kötü amaçlı komut dosyaları veya uzaktan komutlar çalıştırmak için yaygın olarak kullanılır.
+
+Uyarı Tetikleme:
+
+Bu KQL sorgusu, Azure Sentinel üzerinde şüpheli süreç çalıştırmalarını izlemek için kullanılır. Kötü niyetli bir uygulama veya komut çalıştırıldığında, bu sorgu şüpheli süreci tespit eder ve uyarı oluşturur. Bu sayede güvenlik ekipleri, şüpheli bir sürecin hemen ardından olayları inceleyebilir ve müdahale edebilir.
+
+# 19. Data Exfiltration Detection (Veri Sızdırma Tespiti)
+
+  Açıklama: Şüpheli veri sızdırma faaliyetleri tespit edildiğinde uyarı verir.
+  Yapılandırma: Ağ trafiği ve dosya hareketleri izlenerek büyük veri çıkışı tespit edilir.
+
+KQL Sorgusu
+```
+
+```
 
 21. Suspicious Application Installation (Şüpheli Uygulama Yükleme)
 
