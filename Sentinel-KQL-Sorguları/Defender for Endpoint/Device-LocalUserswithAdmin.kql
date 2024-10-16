@@ -1,0 +1,24 @@
+//Summarize all local user accounts (non-domain) per device which have logged on with administrative rights
+
+//Data connector required for this query - M365 Defender - Device* tables
+
+DeviceLogonEvents
+| where TimeGenerated > ago(7d)
+| project
+    TimeGenerated,
+    AdditionalFields,
+    IsLocalAdmin,
+    LogonType,
+    DeviceName,
+    AccountDomain,
+    AccountName
+| extend LocalLogon = toboolean(AdditionalFields.IsLocalLogon)
+| where LocalLogon == true
+| where IsLocalAdmin == true
+| where LogonType == "Interactive"
+| distinct AccountDomain, AccountName, DeviceName
+//Split domain from device name to match for local logons
+| extend Device = split(DeviceName, ".")[0]
+| where Device == AccountDomain
+| summarize ['Local Accounts with Admin']=make_set(AccountName), ['Count of Admin Accounts']=dcount(AccountName) by DeviceName
+| sort by ['Count of Admin Accounts'] desc   

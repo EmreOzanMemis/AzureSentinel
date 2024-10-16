@@ -1,0 +1,12 @@
+//Visualize the most common domains triggering Microsoft Defender SmartScreen warnings
+
+//Data connector required for this query - M365 Defender - Device* tables
+
+DeviceEvents
+| where TimeGenerated > ago (30d)
+| where ActionType == "SmartScreenUrlWarning"
+| parse RemoteUrl with * '://' Domain '/' *
+| where isnotempty(Domain)
+| summarize Count=count()by Domain
+| sort by Count
+| render barchart  

@@ -1,0 +1,39 @@
+// Detects when a user flags an Azure AD risk event followed by changes to their MFA profile - potentially detecting a bad actor changing MFA details
+
+//Data connector required for this query - Azure Active Directory - AAD User Risk Events
+//Data connector required for this query - Azure Active Directory - Audit Logs
+
+// Timeframe = the minutes between flagging a risk event and MFA details being changed
+let timeframe = 120;
+//Search for real time risk events only and retrieve Correlation Id
+AADUserRiskEvents
+| where TimeGenerated > ago (1d)
+| where DetectionTimingType == "realtime"
+| where RiskDetail <> "aiConfirmedSigninSafe"
+| project CorrelationId
+//Join Correlation Id back to sign in data to retrieve the initial sign in time that was flagged for risk
+| join kind=inner(
+SigninLogs
+| where TimeGenerated > ago (1d))
+on CorrelationId
+| summarize ['Risky Signin Time']=min(TimeGenerated) by CorrelationId, UserPrincipalName
+//Join risky sign in UserPrincipalName to audit log for MFA events
+| join kind=inner (
+    AuditLogs
+    | where TimeGenerated > ago (1d)
+    | where OperationName in ("User registered security info", "User deleted security info","User registered all required security info")
+    | where Result == "success"
+    | extend UserPrincipalName = tostring(TargetResources[0].userPrincipalName)
+//Find the latest event in the MFA registration process
+    | summarize arg_max(TimeGenerated, *) by UserPrincipalName
+    | project
+        ['MFA Change Time']=TimeGenerated,
+        OperationName,
+        UserPrincipalName)
+    on UserPrincipalName
+//Calculate the time between the initial sign in event and the MFA change time
+| extend ['Minutes Between Events']=datetime_diff("minute",['MFA Change Time'], ['Risky Signin Time'])
+| project-away UserPrincipalName1
+| project-reorder ['Risky Signin Time'], ['MFA Change Time'], ['Minutes Between Events'], UserPrincipalName, OperationName, CorrelationId
+//Find events where the time between the two events was less than 120 minutes
+| where ['Minutes Between Events'] < timeframe

@@ -1,0 +1,21 @@
+//Visualize Active Directory accounts created, disabled and deleted per day
+
+//Data connector required for this query - Windows Security Events via AMA or Security Events via Legacy Agent
+
+SecurityEvent
+| where TimeGenerated > ago(30d)
+| where AccountType == "User"
+| project TimeGenerated, Account, EventID, TargetAccount
+| where EventID in ("4720", "4725", "4726")
+| where TargetAccount !endswith "$"
+| summarize
+    ['Accounts Created']=countif(EventID == "4720"),
+    ['Accounts Deleted']=countif(EventID == "4726"),
+    ['Accounts Disabled']=countif(EventID == "4725")
+    by startofday(TimeGenerated)
+| render columnchart
+    with (
+    kind=unstacked,
+    xtitle="Day",
+    ytitle="Count",
+    title="Active Directory User Accounts Created, Disabled and Deleted per day")

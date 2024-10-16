@@ -1,0 +1,27 @@
+//Use the DeviceNetworkEvents to find what listening ports are being opened on a device and then query that list
+//You can look for SSH, DNS etc being run from your end user devices
+
+//Data connector required for this query - M365 Defender - Device* tables
+
+//Microsoft Sentinel query
+DeviceNetworkEvents
+| where TimeGenerated > ago(7d)
+| where ActionType == "ListeningConnectionCreated"
+//Exclude high ports
+| where LocalPort < 1025
+| summarize ['Ports Opened']=make_set(LocalPort), ['Count of Ports Opened']=dcount(LocalPort) by DeviceName
+//Look for machines running services such as FTP, SSH, DNS etc
+| where ['Ports Opened'] has_any ("21","22","53")
+
+//Advanced Hunting query
+
+//Data connector required for this query - Advanced Hunting license
+
+DeviceNetworkEvents
+| where Timestamp > ago(7d)
+| where ActionType == "ListeningConnectionCreated"
+//Exclude high ports
+| where LocalPort < 1025
+| summarize ['Ports Opened']=make_set(LocalPort), ['Count of Ports Opened']=dcount(LocalPort) by DeviceName
+//Look for machines running services such as FTP, SSH, DNS etc
+| where ['Ports Opened'] has_any ("21","22","53")

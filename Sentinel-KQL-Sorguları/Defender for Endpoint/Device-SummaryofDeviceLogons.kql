@@ -1,0 +1,37 @@
+//Create a summary of each device showing all users who have logged on, separated into normal and local admin logons
+
+//Data connector required for this query - M365 Defender - Device* tables
+
+//Microsoft Sentinel query
+DeviceLogonEvents
+| where TimeGenerated > ago(30d)
+| project DeviceName, ActionType, LogonType, AdditionalFields, InitiatingProcessCommandLine, AccountName, IsLocalAdmin
+| where ActionType == "LogonSuccess"
+| where LogonType == "Interactive"
+| where AdditionalFields.IsLocalLogon == true
+| where InitiatingProcessCommandLine == "lsass.exe"
+| summarize
+    ['Local Admin Count']=dcountif(AccountName,IsLocalAdmin == "true"),
+    ['Local Admins']=make_set_if(AccountName, IsLocalAdmin == "true"), 
+    ['Standard User Count']=dcountif(AccountName, IsLocalAdmin == "false"),
+    ['Standard Users']=make_set_if(AccountName, IsLocalAdmin == "false")
+    by DeviceName
+| sort by ['Local Admin Count'] desc  
+
+//Advanced Hunting query
+
+//Data connector required for this query - Advanced Hunting license
+
+DeviceLogonEvents
+| where Timestamp > ago(30d)
+| project DeviceName, ActionType, LogonType, AdditionalFields, InitiatingProcessCommandLine, AccountName, IsLocalAdmin
+| where ActionType == "LogonSuccess"
+| where LogonType == "Interactive"
+| where InitiatingProcessCommandLine == "lsass.exe"
+| summarize
+    ['Local Admin Count']=dcountif(AccountName,IsLocalAdmin == "true"),
+    ['Local Admins']=make_set_if(AccountName, IsLocalAdmin == "true"), 
+    ['Standard User Count']=dcountif(AccountName, IsLocalAdmin == "false"),
+    ['Standard Users']=make_set_if(AccountName, IsLocalAdmin == "false")
+    by DeviceName
+| sort by ['Local Admin Count'] desc  

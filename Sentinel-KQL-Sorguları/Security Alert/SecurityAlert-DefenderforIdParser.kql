@@ -1,0 +1,25 @@
+//Parse all the relevant entities - hosts, accounts, IP addresses, files, groups, resources and times from Defender for Identity alerts
+
+//Data connector required for this query - Security Alert (free table that other Defender products send alert info to)
+
+SecurityAlert
+| where ProviderName == "Azure Advanced Threat Protection"
+| summarize arg_max(TimeGenerated, *) by VendorOriginalId
+| mv-expand todynamic(Entities)
+| extend x = parse_json(Entities)
+| extend Host = x.HostName
+| extend Account = x.Name
+| extend IP = x.Address
+| extend File = x.File
+| extend Group = x.Group
+| extend ResourceId = x.ResourceName
+| extend Time= x.Time
+| summarize
+    HostNames=make_set(Host),
+    AccountNames=make_set(Account),
+    IPAddresses=make_set(IP),
+    Files=make_set(File),
+    SecurityGroups=make_set(Group),
+    Resources=make_set(ResourceId),
+    TimeAccessed=make_set(Time)
+    by TimeGenerated, SystemAlertId, AlertName, Description

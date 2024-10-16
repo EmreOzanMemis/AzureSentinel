@@ -1,0 +1,32 @@
+//Detect when Defender for Endpoint alerts on suspicious PowerShell usage. If command is encoded it will be decoded.
+
+//Data connector required for this query - Security Alert (free table that other Defender products send alert info to)
+
+SecurityAlert
+| where AlertName == "Suspicious PowerShell command line"
+| mv-expand todynamic(Entities)
+| extend CommandLine = tostring(Entities.CommandLine)
+//This particular query looks for only encoded Powershell commands, if you want all Powershell commands just remove the lines below
+| extend EncodedCommand = extract(@'\s+([A-Za-z0-9+/]{20}\S+$)', 1, CommandLine)
+| where EncodedCommand != ""
+| extend DecodedCommand = base64_decode_tostring(EncodedCommand)
+| where DecodedCommand != ""
+//
+| project TimeGenerated, CompromisedEntity, AlertName, CommandLine, DecodedCommand
+
+//Advanced Hunting query - depending on the content of the decoded string AH can struggle to render the command occasionally
+
+//Data connector required for this query - Advanced Hunting license
+
+let alertid=
+AlertInfo
+| where Title == @"Suspicious PowerShell command line"
+| distinct AlertId;
+AlertEvidence
+| where AlertId in (alertid)
+| where EntityType == "Process"
+| extend EncodedCommand = extract(@'\s+([A-Za-z0-9+/]{20}\S+$)', 1, ProcessCommandLine)
+| where EncodedCommand != ""
+| extend DecodedCommand = base64_decode_tostring(EncodedCommand)
+| where DecodedCommand != ""
+| project Timestamp, AlertId, ProcessCommandLine, DecodedCommand

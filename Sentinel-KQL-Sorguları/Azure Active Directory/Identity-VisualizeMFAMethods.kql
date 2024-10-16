@@ -1,0 +1,13 @@
+//Visualize the MFA types used by your users, i.e text message, mobile app notification, verification code
+
+//Data connector required for this query - Azure Active Directory - Signin Logs
+
+SigninLogs
+| where TimeGenerated > ago (30d)
+| where AuthenticationRequirement == "multiFactorAuthentication"
+| project AuthenticationDetails
+| extend ['MFA Method'] = tostring(parse_json(AuthenticationDetails)[1].authenticationMethod)
+| summarize Count=count()by ['MFA Method']
+| where ['MFA Method'] != "Previously satisfied" and isnotempty(['MFA Method'])
+| sort by Count desc
+| render barchart with (title="Types of MFA Methods used")

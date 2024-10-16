@@ -1,0 +1,29 @@
+// Detects when an Azure Key Vault firewall is set to allow all by default
+
+//Data connector required for this query - Azure Key Vault
+
+AzureDiagnostics
+| where ResourceType == "VAULTS"
+| where OperationName == "VaultPatch"
+| where ResultType == "Success"
+| project-rename ExistingACL=properties_networkAcls_defaultAction_s, VaultName=Resource
+| where isnotempty(ExistingACL)
+| where ExistingACL == "Deny"
+| sort by TimeGenerated desc  
+| project
+    TimeGenerated,
+    SubscriptionId,
+    VaultName,
+    ExistingACL
+| join kind=inner
+(
+AzureDiagnostics
+| project-rename NewACL=properties_networkAcls_defaultAction_s, VaultName=Resource
+| where ResourceType == "VAULTS"
+| where OperationName == "VaultPatch"
+| where ResultType == "Success"
+| summarize arg_max(TimeGenerated, *) by VaultName, NewACL
+) 
+on VaultName
+| where ExistingACL != NewACL and NewACL == "Allow"
+| project DetectionTime=TimeGenerated1, VaultName, ExistingACL, NewACL, SubscriptionId, IPAddressofActor=CallerIPAddress, Actor=identity_claim_http_schemas_xmlsoap_org_ws_2005_05_identity_claims_upn_s

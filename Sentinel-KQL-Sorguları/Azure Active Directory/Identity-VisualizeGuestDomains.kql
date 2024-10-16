@@ -1,0 +1,13 @@
+//Visualize the most popular domains that have redeemed invites to your Azure AD tenant over the last 30 days.
+
+//Data connector required for this query - Azure Active Directory - Audit Logs
+
+AuditLogs
+| where TimeGenerated > ago(30d)
+| where OperationName == "Redeem external user invite"
+| extend GuestEmail = tostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName)
+| extend ['User Domain'] = tostring(split(GuestEmail, "@")[1])
+| where isnotempty(['User Domain'])
+| summarize Count=count()by ['User Domain']
+| sort by Count desc 
+| render barchart

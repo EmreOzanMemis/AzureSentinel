@@ -1,0 +1,18 @@
+//List any new alert types found by the Defender product suite in the last week compared to the previous year
+
+//Data connector required for this query - Security Alert (free table that other Defender products send alert info to)
+
+//First find all the existing alerts from the last year excluding the last week
+let existingalerts=
+    SecurityAlert
+    | where TimeGenerated > ago(365d) and TimeGenerated < ago(7d)
+    // Exclude alerts from Sentinel itself
+    | where ProviderName != "ASI Scheduled Alerts"
+    | distinct AlertName;
+//Find new alerts triggered in the last week
+SecurityAlert
+| where TimeGenerated > ago(7d)
+// Exclude alerts from Sentinel itself
+| where ProviderName != "ASI Scheduled Alerts"
+| where AlertName !in (existingalerts)
+| distinct AlertName, ProviderName, ProductName

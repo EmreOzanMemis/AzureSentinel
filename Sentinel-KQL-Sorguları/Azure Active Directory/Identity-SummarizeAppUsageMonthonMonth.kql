@@ -1,0 +1,13 @@
+//Summarize the usage of all your applications from last month to this month. Usage is calculated by distinct users per application.
+
+//Data connector required for this query - Azure Active Directory - Signin Logs
+
+SigninLogs
+| where TimeGenerated > ago(60d)
+| where ResultType == "0"
+| summarize
+    ['Last Month Signins']=dcountif(UserPrincipalName, TimeGenerated > ago(60d) and TimeGenerated < ago(30d)),
+    ['This Month Signins']=dcountif(UserPrincipalName, TimeGenerated > ago(30d))
+    by AppId, AppDisplayName
+| extend ['Percentage Change']=(todouble(['This Month Signins'] - todouble(['Last Month Signins'])) / todouble(['Last Month Signins']) * 100)
+| sort by AppDisplayName asc 

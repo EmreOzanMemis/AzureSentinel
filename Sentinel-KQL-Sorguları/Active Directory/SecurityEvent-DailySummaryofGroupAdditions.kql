@@ -1,0 +1,12 @@
+//Create a daily report of users being added to on premise Active Directory groups, summarized by group name
+
+//Data connector required for this query - Windows Security Events via AMA or Security Events via Legacy Agent
+
+SecurityEvent
+| where TimeGenerated > ago (7d)
+| where AccountType == "User"
+| where EventID in (4728, 4732, 4756, 4761, 4746, 4751)
+| project TimeGenerated, MemberName, ['Group Name']=TargetUserName, EventID
+| parse MemberName with * 'CN=' UserAdded ',' *
+| summarize UsersAdded=make_set(UserAdded) by ['Group Name'], startofday(TimeGenerated)
+| sort by ['Group Name'] asc, TimeGenerated desc 

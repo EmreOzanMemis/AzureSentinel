@@ -1,0 +1,22 @@
+//Parses the user agent into its various components to allow hunting on specific browser versions or patch levels
+
+//Data connector required for this query - Azure Active Directory - Signin Logs
+
+SigninLogs
+| extend UserAgentDetail = todynamic(parse_user_agent(UserAgent, "browser"))
+| extend UserAgentFamily = tostring(parse_json(tostring(UserAgentDetail.Browser)).Family)
+| extend UserAgentMajorVersion = toint(parse_json(tostring(UserAgentDetail.Browser)).MajorVersion)
+| extend UserAgentMinorVersion = toint(parse_json(tostring(UserAgentDetail.Browser)).MinorVersion)
+| extend UserAgentPatch = toint(parse_json(tostring(UserAgentDetail.Browser)).Patch)
+| project
+    TimeGenerated,
+    UserPrincipalName,
+    AppDisplayName,
+    ResultType,
+    IPAddress,
+    Location,
+    UserAgentFamily,
+    UserAgentMajorVersion,
+    UserAgentMinorVersion,
+    UserAgentPatch,
+    UserAgent

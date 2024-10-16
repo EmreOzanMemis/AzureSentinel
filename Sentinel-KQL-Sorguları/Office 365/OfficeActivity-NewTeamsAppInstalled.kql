@@ -1,0 +1,16 @@
+//Detect when an app is installed into Teams for the first time compared to the previous timerange
+
+//Data connector required for this query - Office 365
+
+let knownapps=
+    OfficeActivity
+    | where TimeGenerated > ago(180d) and TimeGenerated < ago(7d)
+    | where OfficeWorkload == "MicrosoftTeams"
+    | where Operation == "AppInstalled"
+    | distinct AzureADAppId;
+OfficeActivity
+| where TimeGenerated > ago (7d)
+| where OfficeWorkload == "MicrosoftTeams"
+| where Operation == "AppInstalled"
+| where AzureADAppId !in (knownapps)
+| project TimeGenerated, UserId, AddonName, AzureADAppId

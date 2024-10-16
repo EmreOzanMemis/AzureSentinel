@@ -1,0 +1,21 @@
+// Detects when a service principal (user, group or app) has been granted access to Key Vault data
+
+//Data connector required for this query - Azure Key Vault
+
+AzureDiagnostics
+| where ResourceType == "VAULTS"
+| where OperationName == "VaultPatch"
+| where ResultType == "Success"
+| project-rename ServicePrincipalAdded=addedAccessPolicy_ObjectId_g, Actor=identity_claim_http_schemas_xmlsoap_org_ws_2005_05_identity_claims_name_s, AddedKeyPolicy = addedAccessPolicy_Permissions_keys_s, AddedSecretPolicy = addedAccessPolicy_Permissions_secrets_s,AddedCertPolicy = addedAccessPolicy_Permissions_certificates_s
+| where isnotempty(AddedKeyPolicy)
+    or isnotempty(AddedSecretPolicy)
+    or isnotempty(AddedCertPolicy)
+| project
+    TimeGenerated,
+    KeyVaultName=Resource,
+    ServicePrincipalAdded,
+    Actor,
+    IPAddressofActor=CallerIPAddress,
+    AddedSecretPolicy,
+    AddedKeyPolicy,
+    AddedCertPolicy

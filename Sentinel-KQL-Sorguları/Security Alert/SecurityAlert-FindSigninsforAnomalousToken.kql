@@ -1,0 +1,18 @@
+//When an anomalous token alert is flagged, find the specific risk events that flagged the alert
+
+//Data connector required for this query - Security Alert (free table that other Defender products send alert info to)
+//Data connector required for this query - Azure Active Directory - AAD User Risk Events
+
+let alerts=
+    SecurityAlert
+    | where TimeGenerated > ago(1d)
+    | where AlertName == "Anomalous Token"
+    | mv-expand todynamic(Entities)
+    | project Entities
+    | extend RequestId = tostring(Entities.SessionId)
+    | distinct RequestId;
+//Detections can be offline so retrieve a weeks worth of risk data
+AADUserRiskEvents
+| where TimeGenerated > ago(7d)
+| where RequestId in (alerts)
+| project TimeGenerated, UserPrincipalName, RiskEventType, RiskLevel, DetectionTimingType, IpAddress, Location

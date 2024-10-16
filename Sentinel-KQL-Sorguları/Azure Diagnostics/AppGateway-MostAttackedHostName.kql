@@ -1,0 +1,12 @@
+//Visualize the most attacked hostname behind an Azure App Gateway/WAF
+
+//Data connector required for this query - Azure Diagnostics (Application Gateways)
+
+AzureDiagnostics
+| where TimeGenerated > ago(30d)
+| where ResourceType == "APPLICATIONGATEWAYS"
+| where isnotempty(ruleId_s)
+| summarize ['WAF Hit Count']=count() by hostname_s
+| where isnotempty(hostname_s)
+| sort by ['WAF Hit Count'] desc
+| render barchart with (title="Most WAF Hits by Hostname", xtitle="Hostname")

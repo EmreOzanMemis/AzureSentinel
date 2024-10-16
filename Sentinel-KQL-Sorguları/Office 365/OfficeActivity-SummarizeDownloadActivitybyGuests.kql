@@ -1,0 +1,14 @@
+//Summarize the total count and the list of files downloaded by guests in your Office 365 tenant
+
+//Data connector required for this query - Office 365
+
+let timeframe=7d;
+OfficeActivity
+| where TimeGenerated > ago(timeframe)
+| where Operation in ("FileSyncDownloadedFull", "FileDownloaded")
+| where UserId contains "#EXT#"
+| summarize
+    ['Count of Downloads']=count(),
+    ['List of Files Downloaded']=make_set(OfficeObjectId)
+    by UserId
+| sort by ['Count of Downloads'] desc 

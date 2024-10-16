@@ -1,0 +1,19 @@
+//Visualize the join type (Azure AD joined, Azure AD registered or Hybrid joined) of your MEM/Intune devices per week
+
+//Data connector required for this query - Intune data sent to Sentinel workspace
+
+IntuneDevices
+//Gets all data generated in 180 days
+| where TimeGenerated > ago(180d) 
+//Optionally filter only devices have contact to Intune in 30 days
+| where todatetime(LastContact) > ago (30d) 
+| summarize arg_max(TimeGenerated, *) by DeviceName, startofweek(TimeGenerated)
+| where OS == "Windows"
+| summarize JoinSummary=count()by JoinType, startofweek(TimeGenerated)
+| where isnotempty(JoinType)
+| render columnchart
+    with (
+    kind=unstacked,
+    ytitle="Device Count",
+    xtitle="Week",
+    title="Device count by join type per week") 

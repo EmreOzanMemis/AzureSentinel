@@ -1,0 +1,22 @@
+//When a user reports an email as potential phishing find all other users who received that email
+
+//Data connector required for this query - Security Alert (free table that other Defender products send alert info to)
+//Data connector required for this query - M365 Defender - Email* tables
+
+SecurityAlert
+| where TimeGenerated > ago(1d)
+| where ProviderName == "OATP"
+| where AlertName has "Email reported by user as malware or phish"
+| mv-expand todynamic(Entities)
+| project Entities
+| extend SenderMailFromAddress = tostring(Entities.P1Sender)
+| extend Subject = tostring(Entities.Subject)
+| where isnotempty(SenderMailFromAddress) and isnotempty(Subject)
+| distinct SenderMailFromAddress, Subject
+| join kind=inner(
+    EmailEvents
+    | where TimeGenerated > ago(2d)
+    | project RecipientEmailAddress, SenderMailFromAddress, Subject
+    )
+    on SenderMailFromAddress, Subject
+| summarize Recipients=make_set(RecipientEmailAddress) by Subject, SenderMailFromAddress

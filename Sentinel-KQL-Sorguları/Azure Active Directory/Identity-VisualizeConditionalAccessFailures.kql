@@ -1,0 +1,15 @@
+//Visualizes conditional access policy failures over time by policy name
+
+//Data connector required for this query - Azure Active Directory - Signin Logs
+
+let start = now(-90d);
+let end = now();
+let timeframe= 12h;
+SigninLogs
+| project TimeGenerated, ResultType, ConditionalAccessPolicies
+| where ResultType == 53003
+| mv-expand ConditionalAccessPolicies
+| where ConditionalAccessPolicies.result == "failure"
+| extend ['CA Policy Name'] = tostring(ConditionalAccessPolicies.displayName)
+| make-series ['Failure Count'] = count() default=0 on TimeGenerated in range(start, end, timeframe) by ['CA Policy Name']
+| render timechart with (title="Conditional access policy failure over time")

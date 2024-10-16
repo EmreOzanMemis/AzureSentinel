@@ -1,0 +1,12 @@
+//Visualize the MFA types used by your users - phone sign in, mobile passcode, push or text message, over time
+
+//Data connector required for this query - Azure Active Directory - Signin Logs
+
+SigninLogs
+| where TimeGenerated > ago (180d)
+| where AuthenticationRequirement == "multiFactorAuthentication"
+| project TimeGenerated, AuthenticationDetails
+| extend ['MFA Method'] = tostring(parse_json(AuthenticationDetails)[1].authenticationMethod)
+| summarize Count=count()by ['MFA Method'], bin(TimeGenerated, 7d)
+| where ['MFA Method'] != "Previously satisfied" and isnotempty(['MFA Method']) 
+| render timechart with (ytitle="Count", xtitle="Day", title="MFA methods per week over time")

@@ -1,0 +1,11 @@
+//Find devices that have stopped sending network events over the last 30 days, retrieve last event time and calculate the days since last event
+
+//Data connector required for this query - M365 Defender - Device* tables
+
+DeviceNetworkEvents
+| project TimeGenerated, DeviceName
+| where TimeGenerated > ago(365d)
+| summarize arg_max(TimeGenerated, DeviceName) by DeviceName
+| project DeviceName, ['Days Since Last Event'] = datetime_diff('day', now(), TimeGenerated), ['Last Event Time']=TimeGenerated
+| where ['Days Since Last Event'] > 30
+| sort by ['Days Since Last Event'] desc   

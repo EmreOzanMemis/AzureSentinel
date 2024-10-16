@@ -1,0 +1,29 @@
+//When Defender for Office 365 removes a malicious file from an email track down all device events with the same file hash
+
+//Data connector required for this query - Security Alert (free table that other Defender products send alert info to)
+//Data connector required for this query - M365 Defender - Email* tables
+
+let filehashes=
+SecurityAlert
+| where TimeGenerated > ago (7d)
+| where ProviderName == "OATP"
+| where AlertName == "Email messages containing malicious file removed after delivery​"
+| mv-expand todynamic(Entities)
+| extend Files = Entities.Files
+| project Files
+| mv-expand Files
+| extend FileHashes = Files.FileHashes
+| mv-expand FileHashes
+| extend FileHash = tolower(tostring(FileHashes.Value))
+| where isnotempty( FileHash)
+| distinct FileHash;
+DeviceFileEvents
+    | where TimeGenerated > ago(7d)
+    | project
+        TimeGenerated,
+        ActionType,
+        FileName,
+        DeviceName,
+        SHA256,
+        InitiatingProcessAccountUpn 
+| where SHA256 in (filehashes)

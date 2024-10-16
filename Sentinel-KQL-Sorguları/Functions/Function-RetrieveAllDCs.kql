@@ -1,0 +1,27 @@
+//Query several tables to retireve all your DCs - such as kerberos, DNS, replication events
+let SamrDC=
+IdentityQueryEvents
+| where TimeGenerated > ago (30d)
+| where ActionType == "SAMR query"
+| distinct DestinationDeviceName;
+let DnsDC=
+DnsEvents
+| where TimeGenerated > ago (30d)
+| where Name startswith "_kerberos."
+| distinct Computer
+| extend DestinationDeviceName = tolower(Computer);
+let SrvDC=
+IdentityQueryEvents
+| where TimeGenerated > ago (30d)
+| where QueryType == "Srv"
+| where QueryTarget startswith "_kerberos."
+| distinct DestinationDeviceName;
+let directoryeventsDC=
+IdentityDirectoryEvents
+| where TimeGenerated > ago (30d)
+| where ActionType in ("Directory Services replication")
+// Exclude Azure AD Connect
+| where isnotempty( AccountName) and isnotempty( DestinationDeviceName)
+| distinct DestinationDeviceName;
+union isfuzzy= true SamrDC, DnsDC, SrvDC, directoryeventsDC 
+| distinct DestinationDeviceName

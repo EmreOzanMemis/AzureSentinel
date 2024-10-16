@@ -1,0 +1,23 @@
+//Detects Teamviewer being used for the first time on a device
+
+//Data connector required for this query - M365 Defender - Device* tables
+
+//Build a list of known devices using Teamviewer over the last 60 days
+let knowndevices=
+DeviceNetworkEvents
+| where TimeGenerated > ago(60d) and TimeGenerated < ago(1d)
+| project DeviceName, InitiatingProcessFileName, ActionType, LocalIPType, RemoteIPType
+| where InitiatingProcessFileName contains "teamviewer.exe"
+| where ActionType == "ConnectionSuccess"
+| where LocalIPType == "Private"
+| where RemoteIPType == "Public"
+| distinct DeviceName;
+//Find new devices in the last day not in the known list
+    DeviceNetworkEvents
+    | where TimeGenerated > ago(1d)
+    | where InitiatingProcessFileName contains "teamviewer.exe"
+    | where ActionType == "ConnectionSuccess"
+    | where LocalIPType == "Private"
+    | where RemoteIPType == "Public"
+    | where DeviceName !in (knowndevices)
+    | distinct DeviceName

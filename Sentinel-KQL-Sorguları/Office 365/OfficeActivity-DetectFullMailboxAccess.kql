@@ -1,0 +1,19 @@
+//Detect when an Exchange admin grants full mailbox access to another user
+
+//Data connector required for this query - Office 365
+
+OfficeActivity
+| where RecordType == "ExchangeAdmin"
+| where Operation == "Add-MailboxPermission"
+| parse-where Parameters with * 'Identity","Value":"' TargetMailbox '"' *
+| parse-where Parameters with * 'User","Value":"' UserGivenAccess '"' *
+| parse-where Parameters with * 'AccessRights","Value":"' AccessRights '"' *
+| project
+    TimeGenerated,
+    Actor=UserId,
+    ['Target Mailbox']=TargetMailbox,
+    ['Target Mailbox DisplayName']=OfficeObjectId,
+    ['User Granted Access']=UserGivenAccess,
+    ['Access Type']=AccessRights
+| where tolower(Actor) != "nt authority\\system (microsoft.exchange.servicehost)"
+| sort by TimeGenerated desc 

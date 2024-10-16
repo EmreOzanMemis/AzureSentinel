@@ -1,0 +1,19 @@
+//When a user is flagged for suspicious email sending patterns retrieve all the email they have sent around the time of the Alert
+
+//Data connector required for this query - Security Alert (free table that other Defender products send alert info to)
+//Data connector required for this query - M365 Defender - Email* tables
+
+SecurityAlert
+| where TimeGenerated > ago (7d)
+| where ProviderName == "OATP"
+| where AlertName == "Suspicious email sending patterns detected"
+| mv-expand todynamic(Entities)
+| extend SenderFromAddress = tolower(tostring(Entities.MailboxPrimaryAddress))
+| project AlertTime=TimeGenerated, SenderFromAddress
+| join kind=inner (
+    EmailEvents
+    )
+    on SenderFromAddress
+| where EmailDirection == "Outbound"
+| where TimeGenerated between ((AlertTime - timespan(1h)) .. (AlertTime + timespan(1h)))
+| project TimeGenerated, Subject, AttachmentCount, RecipientEmailAddress

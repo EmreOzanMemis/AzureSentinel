@@ -1,0 +1,19 @@
+//Detects users with global or exchange administrator roles who have accessed email items from mailboxes other than their own
+
+//Data connector required for this query - Office 365
+//Data connector required for this query - Microsoft Sentinel UEBA
+
+let timeframe=30d;
+let adminusers=
+IdentityInfo
+| where TimeGenerated > ago(21d)
+| where AssignedRoles has_any ("Exchange Administrator", "Global Administrator")
+| summarize arg_max(TimeGenerated, *) by AccountUPN
+| project UserId=AccountUPN;
+OfficeActivity
+| where TimeGenerated > ago(timeframe)
+| where OfficeWorkload == "Exchange"
+| where Operation == "MailItemsAccessed"
+| where UserId in (adminusers)
+| where UserId != MailboxOwnerUPN
+| project AccessTime=TimeGenerated, UserId, MailboxOwnerUPN, Folders

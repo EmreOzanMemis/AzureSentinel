@@ -1,0 +1,20 @@
+//Detect when a 'whoami' command is sent for the first time from a device & account combination not seen before
+
+//Data connector required for this query - M365 Defender - Device* tables
+
+DeviceProcessEvents
+| where TimeGenerated > ago (30d) and TimeGenerated < ago(1d)
+| project DeviceName, InitiatingProcessAccountName, InitiatingProcessCommandLine
+| where InitiatingProcessCommandLine contains "whoami"
+| distinct DeviceName, InitiatingProcessAccountName
+| join kind=rightanti (
+    DeviceProcessEvents
+    | where TimeGenerated > ago(1d)
+    | project
+        TimeGenerated,
+        DeviceName,
+        InitiatingProcessAccountName,
+        InitiatingProcessCommandLine
+    | where InitiatingProcessCommandLine contains "whoami"
+    )
+    on DeviceName, InitiatingProcessAccountName

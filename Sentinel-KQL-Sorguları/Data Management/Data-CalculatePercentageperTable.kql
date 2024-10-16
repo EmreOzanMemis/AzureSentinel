@@ -1,0 +1,13 @@
+//Calculate the percentage that each table in your Sentinel workspace is contributing to total ingestion for billable data
+
+//Data connector required for this query - Usage (generated automatically on a log analytics workspace)
+
+Usage
+| where TimeGenerated > ago(30d)
+| where IsBillable == "true"
+| summarize ['Table size in GB']=sum(Quantity / 1024) by DataType
+| as T
+| extend Percentage = round(100.0 * ['Table size in GB'] / toscalar (T
+    | summarize sum(['Table size in GB'])), 2)
+| project-reorder DataType, ['Table size in GB'], Percentage
+| sort by Percentage desc 

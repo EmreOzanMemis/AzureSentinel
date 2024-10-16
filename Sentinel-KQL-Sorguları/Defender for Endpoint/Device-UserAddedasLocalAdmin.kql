@@ -1,0 +1,46 @@
+//Detect when an admin adds another user to the local administrators group on a device and optionally query IdentityInfo to return the UPN of the user added
+
+//Data connector required for this query - M365 Defender - Device* tables
+//Data connector required for this query - Microsoft Sentinel UEBA
+
+DeviceEvents
+| where TimeGenerated > ago(7d)
+| where ActionType == "UserAccountAddedToLocalGroup"
+| where AdditionalFields.GroupName == "Administrators"
+// Exclude processes initiated by system as this detection is for end users adding groups
+| where InitiatingProcessAccountSid != "S-1-5-18"
+| project
+    TimeGenerated,
+    DeviceName,
+    AccountSid,
+    Actor=InitiatingProcessAccountName
+//Join query to IdentityInfo table to match the AccountSid
+//if you do not use the IdentityInfo table remove everything below this line
+| join kind=inner (
+    IdentityInfo
+    | where TimeGenerated > ago (21d)
+    | summarize arg_max (TimeGenerated, *) by AccountUPN)
+    on $left.AccountSid == $right.AccountSID
+| project
+    TimeGenerated,
+    DeviceName,
+    ['User Added']=AccountUPN,
+    ['User Added Sid']=AccountSID,
+    Actor
+
+
+//Advanced Hunting query
+
+//Data connector required for this query - Advanced Hunting license
+
+DeviceEvents
+| where Timestamp > ago(30d)
+| where ActionType == "UserAccountAddedToLocalGroup"
+| where AdditionalFields contains "Administrator"
+| where InitiatingProcessAccountSid != "S-1-5-18"
+| project DeviceName, Actor=InitiatingProcessAccountName, AccountSid
+| join kind=inner (
+IdentityInfo
+)
+on $left.AccountSid==$right.OnPremSid
+| project DeviceName, Actor, AccountSid, UserAdded=AccountUpn

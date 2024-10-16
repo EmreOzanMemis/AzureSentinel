@@ -1,0 +1,17 @@
+//Visualizes the total guest invites sent from your Azure AD tenant vs those redeemed. Data is summarized per week.
+
+//Data connector required for this query - Azure Active Directory - Audit Logs
+
+let timerange=180d;
+AuditLogs
+| where TimeGenerated > ago (timerange)
+| where OperationName in ("Redeem external user invite", "Invite external user")
+| summarize
+    InvitesSent=countif(OperationName == "Invite external user"),
+    InvitesRedeemed=countif(OperationName == "Redeem external user invite")
+    by startofweek(TimeGenerated)
+| render columnchart
+    with (
+    title="Guest Invites Sent v Guest Invites Redeemed",
+    xtitle="Invites",
+    kind=unstacked)

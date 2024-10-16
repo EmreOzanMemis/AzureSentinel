@@ -1,0 +1,26 @@
+//Visualize how much data is being copied to USB drives per day in your environment over the time range.
+
+//Data connector required for this query - M365 Defender - Device* tables
+
+DeviceEvents
+| where TimeGenerated > ago (21d)
+| project TimeGenerated, ActionType, AdditionalFields, DeviceId, FileName
+| where ActionType == "UsbDriveMounted"
+| extend DriveLetter = tostring(todynamic(AdditionalFields).DriveLetter)
+| join kind=inner (DeviceFileEvents
+    | where TimeGenerated > ago (21d)
+    | project TimeGenerated, ActionType, FolderPath, DeviceId, FileName, FileSize
+    | extend FileCopyTime = TimeGenerated
+    | where ActionType == "FileCreated"
+    | parse FolderPath with DriveLetter '\\' *
+    | extend DriveLetter = tostring(DriveLetter)
+    )
+    on DeviceId, DriveLetter
+| distinct FileCopyTime, FileName1, FileSize
+| summarize DataCopiedinGB=sum(FileSize / 1024 / 1024 / 1024) by startofday(FileCopyTime)
+| render columnchart
+    with (
+    kind=unstacked,
+    xtitle="Data Copied in GB",
+    ytitle="Day",
+    title="Data Copied to USB per day")

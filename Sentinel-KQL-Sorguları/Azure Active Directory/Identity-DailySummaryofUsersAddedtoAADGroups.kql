@@ -1,0 +1,15 @@
+//Create a daily summary of Azure Active Directory group additions
+
+//Data connector required for this query - Azure Active Directory - Audit Logs
+
+let timerange=7d;
+AuditLogs
+| where TimeGenerated > ago (timerange)
+| where OperationName == "Add member to group"
+| extend Type = tostring(TargetResources[0].type)
+| where Type == "User"
+| extend ['Group Name'] = tostring(parse_json(tostring(parse_json(tostring(TargetResources[0].modifiedProperties))[1].newValue)))
+| extend UserAdded = tostring(TargetResources[0].userPrincipalName)
+| where isnotempty(UserAdded)
+| summarize ['Users Added']=make_set(UserAdded) by ['Group Name'], startofday(TimeGenerated)
+| sort by ['Group Name'] asc, TimeGenerated desc 

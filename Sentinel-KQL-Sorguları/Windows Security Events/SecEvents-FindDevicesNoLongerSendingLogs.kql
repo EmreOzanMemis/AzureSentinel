@@ -1,0 +1,10 @@
+//Find computers that have not sent any security events for over an hour
+
+//Data connector required for this query - Windows Security Events via AMA or Security Events via Legacy Agent
+
+SecurityEvent
+| where TimeGenerated > ago (1d)
+| summarize ['Last Record Received']  = datetime_diff("minute", now(), max(TimeGenerated)) by Computer
+| project Computer, ['Last Record Received']
+| where ['Last Record Received'] >= 60
+| order by ['Last Record Received'] desc 

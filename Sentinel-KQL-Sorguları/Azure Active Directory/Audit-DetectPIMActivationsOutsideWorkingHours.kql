@@ -1,0 +1,15 @@
+//Detect Azure AD PIM activiations outside of working hours
+
+//Data connector required for this query - Azure Active Directory - Audit Logs
+
+let timerange=30d;
+AuditLogs
+// extend LocalTime to your time zone
+| extend LocalTime=TimeGenerated + 5h
+| where LocalTime > ago(timerange)
+// Change hours of the day to suit your company, i.e this would find activations between 6pm and 6am
+| where hourofday(LocalTime) !between (6 .. 18)
+| where OperationName == "Add member to role completed (PIM activation)"
+| extend User = tostring(parse_json(tostring(InitiatedBy.user)).userPrincipalName)
+| extend ['Azure AD Role Name'] = tostring(TargetResources[0].displayName)
+| project LocalTime, User, ['Azure AD Role Name'], ['Activation Reason']=ResultReason

@@ -1,0 +1,20 @@
+//Find users who hold privileged Azure AD roles but haven't signed onto Azure for 30 days
+
+//Data connector required for this query - Azure Active Directory - Signin Logs
+//Data connector required for this query - Microsoft Sentinel UEBA
+
+let applications = dynamic(["Azure Active Directory PowerShell", "Microsoft Azure PowerShell", "Graph Explorer", "ACOM Azure Website", "Azure Portal", "Azure Advanced Threat Protection"]);
+IdentityInfo
+| where TimeGenerated > ago(21d)
+| where isnotempty(AssignedRoles)
+| project-rename UserPrincipalName=AccountUPN
+| where AssignedRoles != "[]"
+| summarize arg_max(TimeGenerated, *) by UserPrincipalName
+| join kind=leftanti (
+    SigninLogs
+    | where TimeGenerated > ago(30d)
+    | where AppDisplayName in (applications)
+    | where ResultType == "0"
+    )
+    on UserPrincipalName
+| project UserPrincipalName, AssignedRoles

@@ -1,0 +1,10 @@
+//Detect when a new scoping policy is applied, scoping policies are used to limit permissions to Exchange mailboxes being accessed via OAuth. They should be configured with least privilege
+
+//Data connector required for this query - Office 365
+
+OfficeActivity
+| where Operation == "New-ApplicationAccessPolicy"
+| extend GroupPolicyAppliedTo = tostring(parse_json(Parameters)[1].Value)
+| extend AppId = tostring(parse_json(Parameters)[0].Value)
+| extend AccessRight = tostring(parse_json(Parameters)[2].Value)
+| project TimeGenerated, Actor=UserId, Operation, AccessRight, GroupPolicyAppliedTo, AppId
