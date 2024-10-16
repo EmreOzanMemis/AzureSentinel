@@ -374,15 +374,62 @@ Uyarı Tetikleme:
 
 Bu KQL sorgusu, yönetici yetkisi atamaları izleyerek Sentinel üzerinde bir analitik kural olarak kullanılabilir. Bir kullanıcıya admin rolü atandığında bu sorgu çalışır ve yetki atama işlemiyle ilgili detayları gösterir. Azure Sentinel üzerinde bu kural yapılandırıldığında, yüksek yetki atamaları sırasında güvenlik ekiplerine hızlı bir şekilde bilgi verir ve olası tehditlere karşı erken müdahale imkanı sağlar.
 
-# 12. Malicious URL Detected (Zararlı URL Tespit Edildi)
+# 11. Malicious URL Detected (Zararlı URL Tespit Edildi)
 
   Açıklama: Kullanıcının kötü amaçlı bir URL'ye erişmeye çalışması durumunda uyarı verir.
   Yapılandırma: DNS logları ve güvenlik kaynaklarından gelen tehdit istihbaratını kullanarak zararlı URL'ler izlenir.
 
-13. Unusual Outbound Traffic (Olağandışı Çıkış Trafiği)
+  KQL Sorgusu
+```
+DnsEvents
+| where TimeGenerated >= ago(1h)  // Son 1 saatlik DNS sorgularını izler
+| where QueryType == "Query"  // Sadece DNS sorgularını filtreler
+| join kind=inner (
+    ThreatIntelligenceIndicator
+    | where Active == true  // Aktif tehdit istihbaratlarını kullanır
+    | where ExpirationDateTime > now()  // Süresi dolmamış istihbarat verilerini alır
+    | where ThreatType == "malicious-url"  // Tehdit türü zararlı URL olanları seçer
+    ) on $left.QueryName == $right.NetworkIPv4  // DNS sorgusundaki URL ile tehdit istihbaratı verisini karşılaştırır
+| project TimeGenerated, QueryName, ClientIP, ThreatType, Description, ExpirationDateTime
+```
+Sorgu Açıklaması:
 
-    Açıklama: Ağı terk eden alışılmadık miktarda veri tespit edildiğinde uyarı verir.
-    Yapılandırma: Ağ trafiği logları incelenir, olağan dışı yüksek miktarda veri çıkışı olduğunda tetiklenir.
+  DnsEvents: DNS sorgularını içeren tablo. Bu tablo, kullanıcıların ziyaret ettiği alan adlarını ve DNS sorgularını içerir.
+  TimeGenerated >= ago(1h): Son 1 saat içinde yapılan DNS sorgularını filtreler.
+  QueryType == "Query": Sadece DNS sorgularını izler.
+  join kind=inner (ThreatIntelligenceIndicator): DNS sorgularını tehdit istihbaratı ile birleştirir. ThreatIntelligenceIndicator tablosu, zararlı URL'ler ve IP adresleri gibi tehdit bilgilerini içerir.
+  where ThreatType == "malicious-url": Tehdit istihbaratında zararlı URL olarak tanımlanmış alan adlarını seçer.
+  on $left.QueryName == $right.NetworkIPv4: DNS sorgusundaki alan adı ile tehdit istihbaratı verisindeki zararlı URL'leri karşılaştırır.
+  project: İlgili bilgileri seçer:
+        TimeGenerated: DNS sorgusunun zaman damgası.
+        QueryName: Kullanıcının erişmeye çalıştığı URL.
+        ClientIP: DNS sorgusunu başlatan kullanıcının IP adresi.
+        ThreatType: Tespit edilen tehdit türü (zararlı URL).
+        Description: Tehdit hakkında ek bilgiler (örneğin, URL'nin zararlı olduğu tanımı).
+        ExpirationDateTime: Tehdit istihbaratının geçerlilik süresi.
+
+Kullanım Senaryosu:
+
+  QueryName: Kullanıcının DNS sorgusu aracılığıyla erişmeye çalıştığı zararlı URL.
+  ClientIP: Bu DNS sorgusunu yapan cihazın IP adresi.
+  ThreatType: Tespit edilen tehdidin türü (zararlı URL).
+  Description: Tehdit hakkında daha fazla bilgi.
+
+Olası Şüpheli Durumlar:
+
+  Bir kullanıcı zararlı bir URL'ye erişmeye çalıştığında bu sorgu, DNS logları ve tehdit istihbaratını karşılaştırarak zararlı URL'lere erişim girişimlerini tespit eder.
+  Zararlı URL'ler, phishing siteleri veya kötü amaçlı yazılım barındıran siteler olabilir.
+
+Uyarı Tetikleme:
+
+Bu KQL sorgusu, Azure Sentinel üzerinde zararlı URL'lere erişim girişimlerini izlemek için kullanılabilir. Sentinel üzerinde bir analitik kural olarak yapılandırıldığında, kullanıcıların kötü amaçlı URL'lere erişim girişiminde bulunduğu durumlarda uyarı tetiklenir. Bu, güvenlik ekiplerine olası tehditler hakkında hızlı bilgi verir ve erken müdahale imkanı sağlar.
+
+# 12. Unusual Outbound Traffic (Olağandışı Çıkış Trafiği)
+
+  Açıklama: Ağı terk eden alışılmadık miktarda veri tespit edildiğinde uyarı verir.
+  Yapılandırma: Ağ trafiği logları incelenir, olağan dışı yüksek miktarda veri çıkışı olduğunda tetiklenir.
+
+  
 
 14. Impersonation of User Accounts (Kullanıcı Hesabı Taklidi)
 
