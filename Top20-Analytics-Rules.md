@@ -379,7 +379,7 @@ Bu KQL sorgusu, yönetici yetkisi atamaları izleyerek Sentinel üzerinde bir an
   Açıklama: Kullanıcının kötü amaçlı bir URL'ye erişmeye çalışması durumunda uyarı verir.
   Yapılandırma: DNS logları ve güvenlik kaynaklarından gelen tehdit istihbaratını kullanarak zararlı URL'ler izlenir.
 
-  KQL Sorgusu
+KQL Sorgusu
 ```
 DnsEvents
 | where TimeGenerated >= ago(1h)  // Son 1 saatlik DNS sorgularını izler
@@ -429,27 +429,191 @@ Bu KQL sorgusu, Azure Sentinel üzerinde zararlı URL'lere erişim girişimlerin
   Açıklama: Ağı terk eden alışılmadık miktarda veri tespit edildiğinde uyarı verir.
   Yapılandırma: Ağ trafiği logları incelenir, olağan dışı yüksek miktarda veri çıkışı olduğunda tetiklenir.
 
-  
+KQL Sorgusu
+```
+CommonSecurityLog
+| where DeviceAction == "Allow"  // Trafiğin dışarı çıkmasına izin verilen olayları filtreler
+| where TimeGenerated >= ago(1h)  // Son 1 saat içindeki trafiği izler
+| where DestinationIPType == "Public"  // Yalnızca dış IP'lere (kamuya açık IP'ler) yapılan trafiği izler
+| summarize OutboundTraffic = sum(TotalBytesSent) by SourceIP, DestinationIP, DestinationPort
+| where OutboundTraffic > 100000000  // 1 saat içinde 100MB'den fazla veri çıkışı varsa
+| project TimeGenerated, SourceIP, DestinationIP, DestinationPort, OutboundTraffic
+```
+Sorgu Açıklaması:
 
-14. Impersonation of User Accounts (Kullanıcı Hesabı Taklidi)
+  CommonSecurityLog: Genellikle güvenlik cihazları (firewall, proxy, vb.) tarafından oluşturulan ağ trafiği loglarını içerir.
+  DeviceAction == "Allow": Dışarıya doğru veri çıkışına izin verilen trafiği filtreler (izin verilen olaylar).
+  TimeGenerated >= ago(1h): Son 1 saat içinde gerçekleşen trafik olaylarını getirir.
+  DestinationIPType == "Public": Yalnızca dış IP adreslerine yönelik trafiği (public IP) izler, yerel ağdaki trafiği hariç tutar.
+  summarize OutboundTraffic = sum(TotalBytesSent) by SourceIP, DestinationIP, DestinationPort: Kaynak IP adresi, hedef IP adresi ve hedef port ile gruplandırarak, gönderilen toplam veri miktarını hesaplar.
+  where OutboundTraffic > 100000000: 1 saat içinde 100 MB'den fazla veri çıkışı olduğunda bu trafiği filtreler. Bu eşik değeri ihtiyaca göre ayarlanabilir.
+  project: İlgili bilgileri (zaman, kaynak IP, hedef IP, hedef port, veri miktarı) gösterir.
 
-    Açıklama: Bir kullanıcının kimliğini taklit eden giriş denemeleri tespit edildiğinde uyarı verir.
-    Yapılandırma: Kullanıcı logon davranışlarını analiz ederek normal dışı etkinlikleri tespit eder.
+Kullanım Senaryosu:
 
-15. Multiple File Deletions (Çoklu Dosya Silinmesi)
+  SourceIP: Verinin çıktığı kaynağın IP adresi (içeriden dışarıya doğru olan trafik).
+  DestinationIP: Trafiğin yönlendirildiği hedef IP adresi (kamuya açık IP).
+  DestinationPort: Trafiğin gittiği hedef port numarası.
+  OutboundTraffic: Gönderilen toplam veri miktarı (bayt cinsinden).
 
-    Açıklama: Kısa sürede birden fazla dosyanın silinmesi durumunda uyarı verir.
-    Yapılandırma: Windows Event Log ve dosya sistem loglarını izleyerek anormal dosya silme etkinliklerini izler.
+Olası Şüpheli Durumlar:
 
-16. Azure Resource Deletion (Azure Kaynaklarının Silinmesi)
+  Kısa sürede olağandışı miktarda veri dışarıya gönderiliyorsa, bu bir veri sızdırma girişimi veya kötü amaçlı yazılımın büyük miktarda veri çıkışı yaptığı anlamına gelebilir.
+  Verinin kamuya açık bir IP adresine gitmesi, yetkisiz veri aktarımı anlamına gelebilir.
 
-    Açıklama: Kritik bir Azure kaynağının silinmesi durumunda uyarı verir.
-    Yapılandırma: Azure aktiviteleri üzerinden kaynakların silinmesi takip edilir.
+Uyarı Tetikleme:
 
-17. Unusual Azure Resource Activity (Olağandışı Azure Kaynağı Etkinliği)
+Bu KQL sorgusu, Azure Sentinel üzerinde olağandışı çıkış trafiğini izlemek için kullanılabilir. Bir kaynaktan dışarıya kısa süre içinde yüksek miktarda veri çıktığında bu sorgu tetiklenir ve Sentinel üzerinde bir uyarı oluşturur. Bu, güvenlik ekiplerine şüpheli bir duruma erken müdahale etme imkanı sağlar.
 
-    Açıklama: Azure üzerinde olağandışı etkinlikler tespit edildiğinde uyarı verir.
-    Yapılandırma: Azure kaynağı üzerindeki işlem logları analiz edilerek, anormal etkinlikler tespit edilir.
+
+# 13. Impersonation of User Accounts (Kullanıcı Hesabı Taklidi)
+
+  Açıklama: Bir kullanıcının kimliğini taklit eden giriş denemeleri tespit edildiğinde uyarı verir.
+  Yapılandırma: Kullanıcı logon davranışlarını analiz ederek normal dışı etkinlikleri tespit eder.
+
+KQL Sorgusu
+```
+let known_logins = 
+SigninLogs
+| where ResultType == "0"  // Başarılı giriş denemelerini filtreler
+| summarize LastKnownLocation = arg_max(TimeGenerated, Location, IPAddress, DeviceDetail) by UserPrincipalName
+| project UserPrincipalName, LastKnownLocation, IPAddress, DeviceDetail;
+
+SigninLogs
+| where ResultType == "0"  // Başarılı giriş denemelerini izler
+| where TimeGenerated >= ago(1d)  // Son 24 saat içindeki giriş denemelerini alır
+| join kind=leftanti (
+    known_logins 
+    ) on UserPrincipalName, IPAddress, DeviceDetail  // Bilinen IP ve cihazla eşleşmeyen giriş denemelerini bulur
+| project TimeGenerated, UserPrincipalName, IPAddress, Location, DeviceDetail
+```
+
+Sorgu Açıklaması:
+
+  let known_logins: Daha önce kullanıcı tarafından başarılı giriş yapılan bilinen IP adresleri, konumlar ve cihazları belirler.
+  SigninLogs: Azure AD giriş loglarını içerir.
+  ResultType == "0": Başarılı giriş denemelerini filtreler.
+  arg_max: Kullanıcının en son giriş yaptığı yeri, IP adresini ve cihaz bilgilerini alır.
+
+  join kind=leftanti: Kullanıcının bilinen logon davranışları (IP adresi, cihaz, konum) ile uyumsuz giriş denemelerini bulur. Eğer giriş denemesi daha önce hiç kullanılmayan bir IP adresi, cihaz veya bölgeden yapılıyorsa bu bir taklit girişim olabilir.
+
+  project: İlgili bilgileri seçer:
+        TimeGenerated: Giriş denemesinin gerçekleştiği zaman.
+        UserPrincipalName: Giriş yapan kullanıcının kimliği.
+        IPAddress: Girişin yapıldığı IP adresi.
+        Location: Girişin yapıldığı coğrafi konum.
+        DeviceDetail: Girişin yapıldığı cihaz bilgileri.
+
+Kullanım Senaryosu:
+
+  UserPrincipalName: Giriş yapan kullanıcının kimliği.
+  IPAddress: Şüpheli girişin yapıldığı IP adresi.
+  Location: Girişin yapıldığı coğrafi konum.
+  DeviceDetail: Girişin yapıldığı cihazın ayrıntıları.
+
+Olası Şüpheli Durumlar:
+
+  Kullanıcı daha önce hiç kullanmadığı bir IP adresi, cihaz veya konumdan giriş yapıyorsa, bu bir kimlik taklit girişimi olabilir.
+  Bir kullanıcının kimlik bilgileri ele geçirildiğinde, saldırgan farklı cihaz ve IP'ler kullanarak sisteme giriş yapmaya çalışabilir.
+
+Uyarı Tetikleme:
+
+Bu KQL sorgusu, Azure Sentinel üzerinde kullanıcı hesabı taklidini izlemek için kullanılır. Kullanıcının daha önce giriş yapmadığı IP adresleri, cihazlar veya konumlardan giriş denemesi yapıldığında bu sorgu çalışır ve uyarı oluşturur. Bu tür uyarılar, kullanıcı hesaplarının ele geçirilmesi girişimlerine karşı hızlı müdahale edilmesini sağlar.
+
+
+# 14. Multiple File Deletions (Çoklu Dosya Silinmesi)
+
+  Açıklama: Kısa sürede birden fazla dosyanın silinmesi durumunda uyarı verir.
+  Yapılandırma: Windows Event Log ve dosya sistem loglarını izleyerek anormal dosya silme etkinliklerini izler.
+
+KQL Sorgusu
+```
+SecurityEvent
+| where EventID == 4663  // Dosya silme işlemlerini temsil eden Event ID
+| where ObjectType == "File"  // Nesne türü dosya olan olayları filtreler
+| where AccessMask has_any ("0x2", "DELETE")  // Silme izni verilen olaylar
+| where TimeGenerated >= ago(1h)  // Son 1 saat içindeki olayları izler
+| summarize FileDeletions = count() by SubjectUserName, FileName, Computer
+| where FileDeletions > 10  // 1 saat içinde 10'dan fazla dosya silme işlemi
+| project TimeGenerated, SubjectUserName, FileName, Computer, FileDeletions
+```
+Sorgu Açıklaması:
+
+  SecurityEvent: Windows güvenlik olaylarını içeren tablo.
+  EventID == 4663: Bu EventID, bir dosya veya nesneye erişim sağlandığını gösterir. Dosya silme işlemleri bu olayla kaydedilir.
+  ObjectType == "File": Sadece dosya türünde olan nesnelere erişim sağlandığında sonuç döndürür.
+  AccessMask has_any ("0x2", "DELETE"): Silme işlemi yapılmış dosyaları tespit eder (Windows'ta silme izinleri 0x2 ve DELETE olarak işaretlenir).
+  TimeGenerated >= ago(1h): Son 1 saat içinde gerçekleşen dosya silme işlemlerini izler.
+  summarize FileDeletions = count() by SubjectUserName, FileName, Computer: Kullanıcı, dosya adı ve bilgisayar bazında silme işlemlerini sayar.
+  where FileDeletions > 10: 1 saat içinde 10’dan fazla dosya silinmişse bu durum şüpheli olarak değerlendirilir.
+  project: İlgili sütunları seçer (silme işlemi zamanı, kullanıcı adı, silinen dosya adı, bilgisayar adı ve silme sayısı).
+
+Kullanım Senaryosu:
+
+  SubjectUserName: Dosya silme işlemini gerçekleştiren kullanıcının adı.
+  FileName: Silinen dosyanın adı veya yolu.
+  Computer: Silme işleminin yapıldığı bilgisayar.
+  FileDeletions: Belirtilen zaman diliminde gerçekleştirilen dosya silme işlemlerinin sayısı.
+
+Olası Şüpheli Durumlar:
+
+  Bir kullanıcı kısa süre içinde çok sayıda dosya siliyorsa, bu bir ransomware saldırısının veya yetkisiz bir kullanıcının kritik verileri yok etmeye çalıştığının göstergesi olabilir.
+  Çok sayıda dosyanın kısa sürede silinmesi, özellikle hassas veya sistem dosyalarıysa, acil müdahale gerektiren bir duruma işaret edebilir.
+
+Uyarı Tetikleme:
+
+Bu KQL sorgusu, Azure Sentinel üzerinde çoklu dosya silme etkinliklerini izlemek için kullanılır. Kısa bir süre içinde bir kullanıcı tarafından çok sayıda dosya silinmesi durumunda bu sorgu tetiklenir ve uyarı oluşturur. Bu, güvenlik ekiplerine olası veri ihlali veya kötü amaçlı etkinlikler hakkında hızlı bilgi verir ve müdahale etmelerini sağlar.
+
+# 15. Azure Resource Deletion (Azure Kaynaklarının Silinmesi)
+
+  Açıklama: Kritik bir Azure kaynağının silinmesi durumunda uyarı verir.
+  Yapılandırma: Azure aktiviteleri üzerinden kaynakların silinmesi takip edilir.
+
+KQL Sorgusu
+```
+AzureActivity
+| where OperationNameValue == "Microsoft.Resources/subscriptions/resourceGroups/delete" or OperationNameValue contains "delete"  // Silme işlemlerini filtreler
+| where ActivityStatusValue == "Succeeded"  // Başarılı silme işlemlerini izler
+| where TimeGenerated >= ago(1h)  // Son 1 saat içinde gerçekleşen silme işlemlerini izler
+| project TimeGenerated, Caller, ResourceGroup, ResourceId, OperationNameValue, ActivityStatusValue, SubscriptionId
+```
+
+Sorgu Açıklaması:
+
+AzureActivity: Azure kaynaklarının oluşturulması, değiştirilmesi ve silinmesi gibi işlemleri izleyen tablo.
+OperationNameValue == "Microsoft.Resources/subscriptions/resourceGroups/delete" or OperationNameValue contains "delete": Kaynak grubu veya bireysel Azure kaynaklarının silinmesini izler. "delete" anahtar kelimesiyle, silme işlemleri genel olarak filtrelenir.
+ActivityStatusValue == "Succeeded": Başarıyla tamamlanmış silme işlemlerini filtreler. Böylece başarısız denemeleri dışarıda bırakır.
+TimeGenerated >= ago(1h): Son 1 saat içinde gerçekleşen kaynak silme işlemlerini getirir.
+project: İlgili bilgileri seçer:
+TimeGenerated: Silme işleminin gerçekleştiği zaman.
+Caller: Kaynağı silen kullanıcı veya hizmet hesabı.
+ResourceGroup: Silinen kaynağın ait olduğu kaynak grubu.
+ResourceId: Silinen kaynağın tam kimliği (ID).
+OperationNameValue: Gerçekleştirilen işlemin adı (kaynak silme).
+SubscriptionId: Silinen kaynağın bulunduğu abonelik ID’si.
+
+Kullanım Senaryosu:
+
+  Caller: Kaynak silme işlemini gerçekleştiren kişi ya da hizmet.
+  ResourceGroup: Silinen kaynağın ait olduğu kaynak grubu.
+  ResourceId: Silinen kaynağın tam kimliği.
+  OperationNameValue: Gerçekleştirilen işlem (kaynak silme).
+  ActivityStatusValue: Silme işleminin başarı durumu.
+
+Olası Şüpheli Durumlar:
+
+  Beklenmeyen bir zamanda kritik bir Azure kaynağı veya kaynak grubunun silinmesi, yetkisiz erişim veya hatalı yapılandırma göstergesi olabilir.
+  Yanlışlıkla veya kötü niyetli bir şekilde önemli kaynakların silinmesi, iş sürekliliği açısından kritik bir risktir ve acil müdahale gerektirebilir.
+
+Uyarı Tetikleme:
+
+Bu KQL sorgusu, Azure Sentinel üzerinde Azure kaynaklarının silinme olaylarını izlemek için kullanılır. Kritik bir kaynak silindiğinde bu sorgu tetiklenir ve güvenlik ekiplerine bilgi sağlar. Bu sayede, özellikle yanlış yapılandırmalar, siber saldırılar veya insan hatası sonucu silinmiş olabilecek önemli kaynakların silinmesi durumunda hızlı müdahale edilmesi sağlanır.
+
+
+# 16. Unusual Azure Resource Activity (Olağandışı Azure Kaynağı Etkinliği)
+
+  Açıklama: Azure üzerinde olağandışı etkinlikler tespit edildiğinde uyarı verir.
+  Yapılandırma: Azure kaynağı üzerindeki işlem logları analiz edilerek, anormal etkinlikler tespit edilir.
 
 18. Email Forwarding Rules Added (E-posta Yönlendirme Kuralları Eklenmesi)
 
