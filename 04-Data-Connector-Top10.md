@@ -82,7 +82,7 @@ Azure Sentinel'de Data Connector'lar, çeşitli kaynaklardan veri toplayarak teh
 
 Genel Bağlantı Adımları:
 
-    Azure Sentinel Portalına Giriş Yapın: Azure portalında Sentinel hizmetine gidin.
+Azure Sentinel Portalına Giriş Yapın: Azure portalında Sentinel hizmetine gidin.
     Data Connectors Bölümüne Gidin: Azure Sentinel ana ekranında Data Connectors sekmesini açın.
     Bağlamak İstediğiniz Kaynağı Seçin: İlgili kaynağı bulun ve Open Connector Page'e tıklayın.
     Gerekli İzinleri Verin: Birçok bağlantı, Azure AD, Office 365 veya üçüncü parti entegrasyonlar için izinler gerektirir.
