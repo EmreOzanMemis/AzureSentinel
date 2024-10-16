@@ -15,6 +15,8 @@ Azure Sentinel, bir Log Analytics Workspace (Günlük Analitik Çalışma Alanı
   
   ![image](https://github.com/user-attachments/assets/cf5cd577-815a-4cdb-8dc7-f6d52c9c7de3)
 
+
+
   Çalışma alanı için bir Resource Group (Kaynak Grubu) ve Workspace Name (Çalışma Alanı Adı) seçin.
   Bölgeyi (Region) belirleyin. Azure Sentinel’in bu verileri işlemesi için uygun bir bölge seçmek önemlidir.
   Gerekli alanları doldurduktan sonra Create butonuna tıklayın ve yeni çalışma alanınızın oluşturulmasını bekleyin.
