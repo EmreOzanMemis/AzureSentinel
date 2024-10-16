@@ -1,0 +1,96 @@
+Tehdit Avı (Hunting) ve Soruşturmalar özelliği, Azure Sentinel'in güçlü tehdit tespiti ve olay araştırması yeteneklerinin merkezindedir. Bu özellik, güvenlik analistlerinin sistemde potansiyel tehditleri proaktif olarak aramalarına ve mevcut olaylar üzerinde derinlemesine analiz yapmalarına olanak tanır. Aşağıda, Tehdit Avı (Hunting) ve Olay Soruşturmalarının detaylı kurulumu ve yapılandırma adımlarını bulabilirsiniz.
+1. Azure Sentinel'de Tehdit Avı (Hunting) Kurulumu
+Adım 1: Hunting Sekmesine Erişim
+
+    Azure Sentinel portalına (portal.azure.com) giriş yapın.
+    Sentinel ana sayfasında, sol menüden "Hunting" sekmesine gidin. Bu sekmede, Sentinel’de kullanabileceğiniz önceden tanımlı birçok tehdit avı sorgusu bulacaksınız.
+
+Adım 2: Tehdit Avı Sorgularının İncelenmesi
+
+    Hunting Queries: Sentinel, tehdit avı için çeşitli Kusto Query Language (KQL) sorguları sunar. Bu sorgular, sistemin farklı bölümlerindeki potansiyel tehditleri tespit etmek için hazırlanmıştır.
+        Önceden Tanımlı Sorgular: Sentinel, çeşitli güvenlik tehditlerine yönelik yüzlerce hazır sorgu ile gelir. Örneğin:
+            Unusual PowerShell Activity: PowerShell kullanımındaki olağandışı etkinlikleri izler.
+            Failed Logon Attempts: Başarısız oturum açma girişimlerini tespit eder.
+            Suspicious File Deletion: Beklenmedik dosya silme işlemlerini izler.
+
+    Sorgu Kategorileri: Sorgular, güvenlik tehditlerinin türüne göre kategorize edilmiştir:
+        Behavioral Analytics: Kullanıcı veya sistem davranışındaki anormallikleri izler.
+        Endpoint Events: Cihazlarda ve endpoint sistemlerde gerçekleşen olayları izler.
+        Network Events: Ağ trafiğini ve ağdaki potansiyel saldırıları analiz eder.
+
+Adım 3: Tehdit Avı Sorgularının Çalıştırılması
+
+    Query Running: Herhangi bir sorguyu seçtikten sonra Run Query butonuna basarak sorguyu çalıştırabilirsiniz.
+        Sorgunun çalıştırılması, seçilen veri kaynaklarındaki (örneğin, Azure AD, Office 365, Windows Event Logs) olayları inceleyecek ve şüpheli faaliyetleri raporlayacaktır.
+    Sonuçların İncelenmesi: Sorgu çalıştırıldıktan sonra, sonuçları analiz edebilir, şüpheli etkinlikleri daha detaylı inceleyebilir ve olaylarla ilişkilendirebilirsiniz.
+
+Adım 4: Kendi Tehdit Avı Sorgularınızı Oluşturma
+
+    Create Custom Query: Sentinel, kendi KQL sorgularınızı yazarak özelleştirilmiş tehdit avı sorguları oluşturmanıza da olanak tanır.
+        Kusto Query Language (KQL) kullanarak ihtiyacınıza özel yeni sorgular oluşturabilirsiniz.
+        Örneğin, belirli bir IP adresinden gelen şüpheli trafikle ilgili bir sorgu yazabilirsiniz:
+
+```
+CommonSecurityLog
+| where SourceIP == "192.168.1.100"
+| summarize count() by DestinationIP, DestinationPort, SourceIP
+```
+
+    Query Description: Her yeni sorguyu tanımlayıcı bir ad ve açıklama ile kaydedin. Bu sayede, sorgularınız daha sonra tekrar kullanılabilir.
+
+Adım 5: Av Kuralı Tanımlama (Hunting Rule)
+
+    Save as Hunting Rule: Çalıştırdığınız herhangi bir sorguyu sürekli bir tehdit avı kuralı olarak kaydedebilirsiniz. Bu sayede, belirli tehdit türlerine karşı otomatik av işlemleri yapabilirsiniz.
+        Sorguyu çalıştırdıktan sonra Save as hunting rule butonuna basarak yeni bir kural oluşturabilirsiniz.
+        Oluşturduğunuz bu kural sayesinde Sentinel, bu tür anormalliklere otomatik olarak yanıt verebilir ve uyarı oluşturabilir.
+
+2. Soruşturma (Incidents) Yapılandırması ve İnceleme
+
+Azure Sentinel'de, Incidents (Olaylar) sekmesi, Sentinel'in tehditleri algıladıktan sonra oluşturduğu olayların izlenmesini ve derinlemesine incelenmesini sağlar.
+Adım 1: Olaylar Sekmesine Erişim
+
+    Sentinel portalında sol menüden "Incidents" sekmesine gidin. Bu bölümde Sentinel tarafından oluşturulan tüm olayları görebilirsiniz.
+    Olaylar listesi, şüpheli etkinlikler veya tehditler tespit edildiğinde oluşturulur ve olayların önem seviyesine göre sınıflandırılabilir.
+
+Adım 2: Olay Detaylarını İnceleme
+
+    Herhangi bir olaya tıklayarak detaylarına ulaşabilirsiniz.
+        Olay detayları, şüpheli faaliyetin türü, hangi kaynaklardan geldiği, tetikleyici kural ve olayla ilişkili tehdit bilgilerini içerir.
+        Timeline (Zaman Çizelgesi): Olayın zaman çizelgesi içinde ne zaman ve nasıl meydana geldiğini inceleyebilirsiniz.
+        Related Entities: Olayla ilişkili kullanıcılar, IP adresleri, cihazlar veya kaynaklar gibi varlıkları görebilirsiniz.
+
+Adım 3: Olay Araştırma (Investigation Graph)
+
+    Investigation Graph: Olayı daha derinlemesine incelemek için Investigation butonuna basarak olayla ilgili grafiksel bir analiz yapabilirsiniz.
+        Grafiksel Temsil: Bu grafik, olayla ilişkili varlıklar arasında bir bağlantı haritası gösterir. Böylece şüpheli faaliyetin nasıl yayıldığını görselleştirir.
+        İlgili Loglar: İlgili log verilerine tıklayarak hangi olayların bu şüpheli durumu tetiklediğini görebilirsiniz.
+
+Adım 4: Olay Yönlendirme ve Yanıt Eylemleri
+
+    Action (Yanıt Eylemleri): Bir olayla ilgili eylemler gerçekleştirebilirsiniz:
+        Investigate (Araştırma): Olayı derinlemesine inceleyebilirsiniz.
+        Assign (Atama): Olayı güvenlik ekibindeki bir kişiye atayabilirsiniz.
+        Change Status (Durum Değiştirme): Olayın durumunu (örn. aktif, kapalı, inceleme) değiştirebilirsiniz.
+        Automated Response (Otomatik Yanıt): Olayı çözmek için Sentinel'de Playbook'lar kullanarak otomatik yanıtlar verebilirsiniz.
+
+3. Otomatik Yanıtlar ve Playbook'lar
+
+Azure Sentinel'de Playbooks (otomatik yanıt kitapları), tehditlere karşı otomatik yanıtlar vermenize olanak tanır. Playbooks, olay tetiklendiğinde bir dizi önceden tanımlanmış eylemi otomatik olarak gerçekleştirebilir.
+Adım 1: Playbook Oluşturma
+
+    Sentinel portalında Automation sekmesine gidin ve Create a Playbook butonuna tıklayın.
+    Logic Apps kullanarak bir otomatik yanıt sistemi oluşturun. Örneğin, belirli bir IP adresinden gelen trafiği otomatik olarak engellemek için bir Playbook oluşturabilirsiniz.
+
+Adım 2: Playbook İçeriği Tanımlama
+
+    Playbook içeriğinde, olay tetiklendiğinde gerçekleşecek eylemleri tanımlayın. Bu eylemler şunlar olabilir:
+        E-posta gönderimi: Belirli bir olay tetiklendiğinde güvenlik ekibine e-posta gönderme.
+        Şüpheli IP’yi engelleme: Olayda tanımlanan şüpheli IP adreslerini ağ üzerinde engelleme.
+
+Adım 3: Otomatik Yanıt Kuralı Ekleme
+
+    Incidents bölümünde bir olay seçin ve bu olaya bir Playbook atayın. Olay gerçekleştiğinde otomatik yanıtlar başlatılır.
+
+Sonuç
+
+Azure Sentinel’in Tehdit Avı ve Olay Soruşturma özellikleri, güvenlik ekiplerine proaktif tehdit avı yapma ve tespit edilen tehditleri ayrıntılı olarak inceleme imkanı sunar. Hazır tehdit avı sorguları ve özelleştirilebilir KQL sorguları ile güvenlik risklerine hızlı müdahale edilebilir. Ayrıca, Playbook'lar ile otomatik yanıtlar oluşturularak güvenlik olaylarına hızlı çözüm sağlanabilir.
