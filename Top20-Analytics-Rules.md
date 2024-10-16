@@ -753,12 +753,129 @@ Bu KQL sorgusu, Azure Sentinel üzerinde şüpheli süreç çalıştırmaların�
   Açıklama: Şüpheli veri sızdırma faaliyetleri tespit edildiğinde uyarı verir.
   Yapılandırma: Ağ trafiği ve dosya hareketleri izlenerek büyük veri çıkışı tespit edilir.
 
-KQL Sorgusu
+KQL Sorgusu (Ağ Trafiği ve Dosya Hareketleri Üzerinden)
+```
+CommonSecurityLog
+| where DeviceAction == "Allow"  // İzin verilen trafik olaylarını izler
+| where DestinationIPType == "Public"  // Yalnızca dış IP adreslerine yönelik trafiği filtreler
+| where TimeGenerated >= ago(1h)  // Son 1 saat içindeki trafik olaylarını izler
+| summarize TotalBytesSent = sum(TotalBytesSent) by SourceIP, DestinationIP, DestinationPort
+| where TotalBytesSent > 500000000  // 1 saat içinde 500 MB'den fazla veri transferi varsa
+| project TimeGenerated, SourceIP, DestinationIP, DestinationPort, TotalBytesSent
+```
+Sorgu Açıklaması:
+
+  CommonSecurityLog: Genellikle güvenlik cihazları (firewall, proxy vb.) tarafından kaydedilen ağ trafiği loglarını içerir.
+  DeviceAction == "Allow": Trafiğin dışarıya çıkmasına izin verilen olayları filtreler. Sadece başarılı bağlantılar izlenir.
+  DestinationIPType == "Public": Dış IP adreslerine (internete) yönelik trafiği filtreler. Yerel ağdaki trafiği hariç tutar.
+  TimeGenerated >= ago(1h): Son 1 saat içinde gerçekleşen olayları alır.
+  summarize TotalBytesSent = sum(TotalBytesSent) by SourceIP, DestinationIP, DestinationPort: Kaynak IP adresi, hedef IP adresi ve port bazında gönderilen toplam veri miktarını toplar.
+  where TotalBytesSent > 500000000: 1 saat içinde 500 MB’den fazla veri çıkışı olan kaynakları filtreler. Bu eşik değeri ihtiyaca göre ayarlanabilir.
+  project: İlgili bilgileri (zaman, kaynak IP, hedef IP, hedef port, gönderilen veri miktarı) gösterir.
+
+KQL Sorgusu (Dosya Transferleri Üzerinden)  
+```
+OfficeActivity
+| where Operation == "FileDownloaded" or Operation == "FileAccessed"  // Dosya indirme veya erişim işlemlerini izler
+| where OfficeWorkload == "SharePoint" or OfficeWorkload == "OneDrive"  // SharePoint ve OneDrive üzerindeki dosya hareketlerini izler
+| where TimeGenerated >= ago(1h)  // Son 1 saat içindeki dosya işlemlerini izler
+| summarize FileTransfers = count() by UserId, ClientIP
+| where FileTransfers > 50  // 1 saat içinde 50'den fazla dosya transferi varsa
+| project TimeGenerated, UserId, ClientIP, FileTransfers
+```
+Sorgu Açıklaması:
+
+  OfficeActivity: Office 365 üzerinde gerçekleşen etkinlikleri izleyen tablo. Bu tablo dosya indirme ve erişim işlemlerini kaydeder.
+  Operation == "FileDownloaded" or Operation == "FileAccessed": Dosya indirme ve dosya erişim işlemlerini filtreler.
+  OfficeWorkload == "SharePoint" or OfficeWorkload == "OneDrive": SharePoint ve OneDrive üzerindeki dosya hareketlerini izler.
+  TimeGenerated >= ago(1h): Son 1 saat içinde gerçekleşen dosya transferi işlemlerini izler.
+  summarize FileTransfers = count() by UserId, ClientIP: Kullanıcı ve IP adresine göre dosya transferlerini sayar.
+  where FileTransfers > 50: 1 saat içinde 50’den fazla dosya transferi olan durumları filtreler.
+  project: İlgili bilgileri (zaman, kullanıcı, IP adresi, dosya transfer sayısı) görüntüler.
+
+Kullanım Senaryosu:
+
+  SourceIP: Verinin kaynaklandığı cihazın IP adresi.
+    DestinationIP: Verinin gönderildiği dış IP adresi.
+    DestinationPort: Trafiğin yönlendirildiği hedef port.
+    TotalBytesSent: Gönderilen toplam veri miktarı (MB cinsinden).
+    UserId: Dosya transferini gerçekleştiren kullanıcının kimliği.
+    FileTransfers: Kısa süre içinde gerçekleştirilen dosya transfer sayısı.
+
+Olası Şüpheli Durumlar:
+
+  Kısa sürede büyük miktarda veri dışarıya gönderiliyorsa, bu bir veri sızdırma girişimi olabilir.
+    Aynı kullanıcının kısa bir süre içinde çok sayıda dosya indiriyor veya başka bir cihaza yüklüyor olması, yetkisiz veri çıkışının göstergesi olabilir.
+
+Uyarı Tetikleme:
+
+Bu KQL sorguları, Azure Sentinel üzerinde şüpheli veri sızdırma faaliyetlerini izlemek için kullanılır. Kısa sürede büyük miktarda veri çıkışı veya çok sayıda dosya transferi gerçekleştiğinde, bu sorgular tetiklenir ve Sentinel üzerinde uyarı oluşturur. Bu sayede güvenlik ekipleri olası bir veri sızıntısı girişimine karşı hızlıca müdahale edebilir.
+
+# 20. Suspicious Application Installation (Şüpheli Uygulama Yükleme)
+
+  Açıklama: Şüpheli bir uygulamanın sisteme yüklenmesi durumunda uyarı verir.
+  Yapılandırma: Uygulama yükleme logları takip edilir ve normal dışı bir uygulama yüklemesi tespit edildiğinde tetiklenir.
+
+KQL Sorgusu (Windows Event Logları Üzerinden)
+```
+SecurityEvent
+| where EventID == 4688  // Süreç başlatma olayı (Process Creation Event)
+| where NewProcessName has_any ("msiexec.exe", "setup.exe", "install.exe")  // Yaygın kullanılan yükleyici süreçlerini filtreler
+| where CommandLine contains_any ("-i", "-install", "/quiet", "/passive")  // Komut satırında yükleme parametrelerini izler
+| where TimeGenerated >= ago(1h)  // Son 1 saat içinde gerçekleşen olayları izler
+| summarize Installations = count() by Account, Computer, NewProcessName, CommandLine
+| where Installations > 1  // Aynı süreç üzerinden birden fazla yükleme işlemi varsa
+| project TimeGenerated, Account, Computer, NewProcessName, CommandLine, Installations
 ```
 
+Sorgu Açıklaması:
+
+  SecurityEvent: Windows güvenlik olaylarını içerir.
+    EventID == 4688: Bu Event ID, bir süreç başlatıldığında kaydedilen olaydır (Process Creation Event). Uygulama yükleme süreçleri burada izlenir.
+    NewProcessName has_any ("msiexec.exe", "setup.exe", "install.exe"): Yaygın olarak kullanılan yükleyici uygulamaları filtreler. Bu uygulamalar genellikle yeni yazılımlar veya güncellemeler yükler.
+    CommandLine contains_any ("-i", "-install", "/quiet", "/passive"): Yükleme komutlarını izler. Sessiz yüklemeler (örneğin, /quiet veya /passive), saldırganların fark edilmeden yazılım yüklemek için kullandığı yaygın yöntemlerdir.
+    TimeGenerated >= ago(1h): Son 1 saat içinde gerçekleşen olayları izler.
+    summarize Installations = count() by Account, Computer, NewProcessName, CommandLine: Yükleme süreçlerini kullanıcı, bilgisayar ve komut satırına göre gruplar ve sayar.
+    where Installations > 1: Aynı süreçle birden fazla yükleme işlemi yapılmışsa, bu şüpheli kabul edilir.
+    project: İlgili bilgileri (zaman, kullanıcı, bilgisayar, süreç adı, komut satırı ve yükleme sayısı) gösterir.
+
+
+KQL Sorgusu (Endpoint Verileri Üzerinden)
+```
+DeviceProcessEvents
+| where ActionType == "CreateProcess"  // Yeni bir süreç başlatıldığında kaydedilen olay
+| where FileName in ("msiexec.exe", "setup.exe", "install.exe")  // Yükleyici süreçleri izler
+| where ProcessCommandLine contains_any ("-install", "/quiet", "/passive")  // Yükleme komut satırı parametrelerini izler
+| where Timestamp >= ago(1h)  // Son 1 saat içindeki olayları izler
+| summarize InstallCount = count() by InitiatingProcessAccountName, DeviceName, FileName, ProcessCommandLine
+| where InstallCount > 1  // Aynı süreçle birden fazla yükleme işlemi varsa
+| project Timestamp, InitiatingProcessAccountName, DeviceName, FileName, ProcessCommandLine, InstallCount
 ```
 
-21. Suspicious Application Installation (Şüpheli Uygulama Yükleme)
+Sorgu Açıklaması:
 
-    Açıklama: Şüpheli bir uygulamanın sisteme yüklenmesi durumunda uyarı verir.
-    Yapılandırma: Uygulama yükleme logları takip edilir ve normal dışı bir uygulama yüklemesi tespit edildiğinde tetiklenir.
+  DeviceProcessEvents: Endpoint cihazlarda gerçekleşen süreç olaylarını içerir.
+    ActionType == "CreateProcess": Yeni bir süreç oluşturulduğunda kaydedilen olay. Yükleme işlemlerini bu tür olaylar üzerinden izler.
+    FileName in ("msiexec.exe", "setup.exe", "install.exe"): Yaygın kullanılan yükleme uygulamalarını filtreler.
+    ProcessCommandLine contains_any ("-install", "/quiet", "/passive"): Yükleme süreçlerini gösteren komut satırı parametrelerini izler.
+    Timestamp >= ago(1h): Son 1 saat içinde gerçekleşen süreç başlatma olaylarını izler.
+    summarize InstallCount = count() by InitiatingProcessAccountName, DeviceName, FileName, ProcessCommandLine: Yükleme işlemlerini kullanıcı, cihaz ve komut satırına göre gruplar.
+    where InstallCount > 1: Aynı süreçle birden fazla yükleme işlemi yapılmışsa, bu şüpheli kabul edilir.
+    project: İlgili bilgileri (zaman, kullanıcı, cihaz, süreç adı, komut satırı ve yükleme sayısı) gösterir.
+
+Kullanım Senaryosu:
+
+  NewProcessName/FileName: Yükleme sürecini başlatan uygulamanın adı (örn. msiexec.exe).
+    CommandLine/ProcessCommandLine: Uygulamanın nasıl başlatıldığına dair komut satırı parametreleri.
+    Account/InitiatingProcessAccountName: Yükleme işlemini başlatan kullanıcının hesabı.
+    Computer/DeviceName: Yükleme işleminin gerçekleştirildiği bilgisayar.
+
+Olası Şüpheli Durumlar:
+
+  Sessiz yüklemeler (/quiet, /passive) gibi gizli yöntemlerle yapılan yazılım yüklemeleri genellikle kötü niyetli faaliyetlerin göstergesi olabilir.
+    Aynı kullanıcı veya cihaz üzerinde kısa süre içinde çok fazla yazılım yükleme işlemi yapılması şüpheli kabul edilir.
+
+Uyarı Tetikleme:
+
+Bu KQL sorguları, Azure Sentinel üzerinde şüpheli uygulama yüklemelerini izlemek için kullanılır. Bir sistemde şüpheli yazılım veya yetkisiz bir program yüklendiğinde, bu sorgu tetiklenir ve Sentinel üzerinde uyarı oluşturulur. Bu sayede güvenlik ekipleri, şüpheli yazılım yüklemelerine hızlı bir şekilde müdahale edebilir.
+
