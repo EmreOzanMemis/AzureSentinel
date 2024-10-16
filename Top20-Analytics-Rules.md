@@ -1,10 +1,11 @@
 Azure Sentinel'de kullanılan analitik kurallar (Analytics Rules), tehdit algılamayı ve olay yanıtını otomatik hale getiren temel yapı taşlarıdır. Bu kurallar, loglardan ve çeşitli veri kaynaklarından gelen bilgileri analiz ederek şüpheli etkinlikleri tespit eder ve güvenlik ekiplerine uyarılar gönderir.
 
 Aşağıda, Azure Sentinel'de sıklıkla kullanılan 20 analitik kuralı ve nasıl yapılandırıldıklarını detaylı bir şekilde anlatıyorum:
-1. Failed Logon Attempts (Başarısız Giriş Denemeleri)
 
-    Açıklama: Belirli bir zaman diliminde başarısız oturum açma denemelerinin sayısı belirli bir eşiği aştığında uyarı verir.
-    Yapılandırma: Log verilerinden başarısız oturum açma denemeleri izlenir. Örneğin, 5 dakikada 10 başarısız deneme sonrası tetikleme yapılır.
+# 1. Failed Logon Attempts (Başarısız Giriş Denemeleri)
+
+Açıklama: Belirli bir zaman diliminde başarısız oturum açma denemelerinin sayısı belirli bir eşiği aştığında uyarı verir.
+Yapılandırma: Log verilerinden başarısız oturum açma denemeleri izlenir. Örneğin, 5 dakikada 10 başarısız deneme sonrası tetikleme yapılır.
 
 KQL Sorgusu
 ```
@@ -28,10 +29,10 @@ Sorgu Açıklaması:
 Bu KQL sorgusu, 5 dakika içinde 10 veya daha fazla başarısız oturum açma denemesi olan kullanıcıları belirler. Sentinel üzerinde bu sorgu bir analitik kural olarak yapılandırıldığında, eşik aşıldığında uyarı oluşturulacaktır.
 
 
-2. Suspicious PowerShell Activity (Şüpheli PowerShell Faaliyetleri)
+# 2. Suspicious PowerShell Activity (Şüpheli PowerShell Faaliyetleri)
 
-    Açıklama: Kötü amaçlı PowerShell komutlarının çalıştırılması tespit edildiğinde uyarı verir.
-    Yapılandırma: Windows Event Logs üzerinde PowerShell komutlarının izlenmesi. Özellikle sık kullanılan zararlı komutlar (örn. Invoke-Mimikatz) belirlenir.
+Açıklama: Kötü amaçlı PowerShell komutlarının çalıştırılması tespit edildiğinde uyarı verir.
+Yapılandırma: Windows Event Logs üzerinde PowerShell komutlarının izlenmesi. Özellikle sık kullanılan zararlı komutlar (örn. Invoke-Mimikatz) belirlenir.
 
 KQL Sorgusu
 ```
@@ -57,10 +58,10 @@ Sorgu ile Tespit Edilecek Örnek Şüpheli Faaliyetler:
 
 Bu KQL sorgusu, kötü niyetli PowerShell komutlarının çalıştırıldığını tespit etmek ve şüpheli etkinlikleri raporlamak için Sentinel üzerinde bir analitik kural olarak kullanılabilir.
 
-3. Mass Download of Files (Toplu Dosya İndirme)
+# 3. Mass Download of Files (Toplu Dosya İndirme)**
 
-    Açıklama: Kısa sürede çok sayıda dosya indirilmesi durumunda uyarı verir.
-    Yapılandırma: Office 365 veya SharePoint loglarında büyük veri indirme etkinliklerini izleyerek yapılandırılır.
+Açıklama: Kısa sürede çok sayıda dosya indirilmesi durumunda uyarı verir.
+Yapılandırma: Office 365 veya SharePoint loglarında büyük veri indirme etkinliklerini izleyerek yapılandırılır.
 
 KQL Sorgusu
 ```
@@ -90,20 +91,91 @@ Senaryolar:
 
 Bu sorgu, belirlenen bir zaman diliminde (örneğin, 10 dakika) büyük miktarda dosya indirildiğinde uyarı verilmesini sağlar ve Sentinel üzerinde bir analitik kural olarak yapılandırılabilir.
 
-5. Multiple Failed VPN Logins (Birden Fazla Başarısız VPN Girişi)
+# 4. Multiple Failed VPN Logins (Birden Fazla Başarısız VPN Girişi)
 
-    Açıklama: Bir kullanıcı tarafından başarısız VPN giriş denemeleri belirli bir eşiği aştığında tetiklenir.
-    Yapılandırma: VPN erişim logları incelenerek başarısız deneme sayısı eşiği belirlenir.
+Açıklama: Bir kullanıcı tarafından başarısız VPN giriş denemeleri belirli bir eşiği aştığında tetiklenir.
+Yapılandırma: VPN erişim logları incelenerek başarısız deneme sayısı eşiği belirlenir.
 
-6. Unusual Logon Locations (Olağandışı Giriş Konumları)
+VPN erişim logları genellikle "VPN başarısız giriş" olaylarını içerir. Bu loglar, belirli bir event ID veya log kaynağına (örneğin, NetworkSecurityEvent) bağlı olabilir. Aşağıdaki örnek KQL sorgusu, VPN başarısız giriş denemelerini tespit eder ve belirli bir eşikten fazla deneme olduğunda uyarı verir.
 
-    Açıklama: Kullanıcının normal giriş yaptığı bölge dışında başka bir bölgeden giriş yapılırsa uyarı verir.
-    Yapılandırma: IP adresi ve bölge bilgisi loglarından analiz edilir. Normalde giriş yapılan bölgeler tanımlanır.
+KQL Sorgusu
+```
+SigninLogs
+| where ResultType == "50126" or ResultType == "50076"  // VPN başarısız giriş denemelerini temsil eden hata kodları
+| where TimeGenerated >= ago(10m)  // Son 10 dakika içindeki logları alır
+| summarize FailedAttempts = count() by UserPrincipalName, IPAddress
+| where FailedAttempts > 5  // 5'ten fazla başarısız giriş denemesi varsa
+| project TimeGenerated, UserPrincipalName, IPAddress, FailedAttempts
+```
+Sorgu Açıklaması:
 
-7. RDP Brute Force Attack (RDP Brute Force Saldırısı)
+SigninLogs: Azure AD üzerinde VPN ve diğer giriş denemelerinin loglarını içerir.
+ResultType == "50126" or ResultType == "50076": Başarısız oturum açma girişimlerini temsil eden hata kodlarıdır. (Bu kodlar kullanılan VPN altyapısına göre değişebilir; kullanılan VPN sistemine özgü kodlar araştırılmalıdır).
+        50126: Yanlış kimlik bilgileri hatası.
+        50076: Çok faktörlü kimlik doğrulama hatası.
+TimeGenerated >= ago(10m): Son 10 dakikalık logları filtreler.
+summarize FailedAttempts = count() by UserPrincipalName, IPAddress: Kullanıcı kimliği (UserPrincipalName) ve IP adresine göre başarısız giriş denemelerini sayar.
+where FailedAttempts > 5: 5'ten fazla başarısız giriş denemesi varsa sonuçları filtreler.
+project: İlgili sütunları (zaman, kullanıcı kimliği, IP adresi, başarısız deneme sayısı) görüntüler.
 
-    Açıklama: Bir IP adresinden birçok başarısız RDP giriş denemesi yapıldığında uyarı verir.
-    Yapılandırma: Belirli bir zaman diliminde belirli bir IP'den gelen başarısız RDP giriş denemelerini izler.
+Kullanım Senaryosu:
+
+UserPrincipalName: VPN'e bağlanmaya çalışan kullanıcının kimliği.
+IPAddress: Kullanıcının bağlandığı IP adresi.
+FailedAttempts: Kısa sürede tekrarlayan başarısız giriş denemeleri.
+
+Bu KQL sorgusu, belirli bir süre zarfında (örneğin 10 dakika) bir kullanıcı tarafından yapılan başarısız VPN giriş denemelerinin sayısını toplar ve belirli bir eşikten (örneğin 5 deneme) fazla deneme olduğunda uyarı verir. Bu kuralı Azure Sentinel'de bir analitik kural olarak yapılandırarak, VPN girişleri üzerindeki anormal etkinlikleri izleyebilirsiniz.
+
+
+# 5. Unusual Logon Locations (Olağandışı Giriş Konumları)
+
+KQL Sorgusu
+```
+let known_locations = 
+SigninLogs
+| where ResultType == "0"  // Başarılı giriş denemelerini filtreler
+| summarize LastKnownLocation = arg_max(TimeGenerated, Location) by UserPrincipalName
+| project UserPrincipalName, LastKnownLocation;
+
+SigninLogs
+| where ResultType == "0"  // Başarılı giriş denemelerini filtreler
+| where TimeGenerated >= ago(1d)  // Son 24 saatteki giriş denemelerini alır
+| join kind=leftanti (
+    known_locations 
+    ) on UserPrincipalName, Location  // Bilinen konumlarla eşleşmeyen giriş denemelerini bulur
+| project TimeGenerated, UserPrincipalName, Location, IPAddress
+```
+Sorgu Açıklaması:
+
+let known_locations: Kullanıcının daha önce başarılı giriş yaptığı konumları tanımlar.
+SigninLogs: Azure AD üzerindeki giriş loglarını içerir.
+ResultType == "0": Başarılı oturum açma girişimlerini filtreler.
+arg_max(TimeGenerated, Location): Kullanıcının son başarılı oturum açma girişini ve bölgesini alır.
+project: Kullanıcı adı ve son bilinen giriş bölgesini seçer.
+
+join kind=leftanti: Yeni girişleri, daha önce bilinen giriş konumlarıyla karşılaştırır. Eğer kullanıcı, daha önce giriş yaptığı konumlardan farklı bir yerden oturum açıyorsa bu giriş sorgu sonucu olarak döner.
+
+project: Zaman, kullanıcı adı, giriş bölgesi ve IP adresi gibi bilgileri seçer.
+
+Sonuç:
+
+Bu sorgu, kullanıcının normalde giriş yaptığı bölge (Location) dışındaki girişleri tespit eder. Eğer bir kullanıcı bilinen konumunun dışındaki bir bölgeden giriş yaparsa, bu olağandışı giriş olarak kabul edilir ve uyarı tetiklenir.
+Kullanım Senaryosu:
+
+UserPrincipalName: Giriş yapan kullanıcının kimliği.
+Location: Kullanıcının giriş yaptığı coğrafi bölge veya ülke.
+IPAddress: Giriş yapılan cihazın IP adresi.
+TimeGenerated: Giriş zamanını gösterir.
+
+Bu KQL sorgusu, Azure Sentinel üzerinde olağandışı bölgeden yapılan girişleri tespit etmek için kullanılır. Eğer bir kullanıcı genellikle belirli bir ülkeden oturum açıyorsa ve aniden farklı bir ülkeden giriş yaparsa, bu potansiyel olarak güvenlik ihlali olarak değerlendirilebilir ve uyarı oluşturulabilir.
+
+Açıklama: Kullanıcının normal giriş yaptığı bölge dışında başka bir bölgeden giriş yapılırsa uyarı verir.
+Yapılandırma: IP adresi ve bölge bilgisi loglarından analiz edilir. Normalde giriş yapılan bölgeler tanımlanır.
+
+# 6. RDP Brute Force Attack (RDP Brute Force Saldırısı)
+
+Açıklama: Bir IP adresinden birçok başarısız RDP giriş denemesi yapıldığında uyarı verir.
+Yapılandırma: Belirli bir zaman diliminde belirli bir IP'den gelen başarısız RDP giriş denemelerini izler.
 
 8. Suspicious Administrative Activity (Şüpheli Yönetici Faaliyetleri)
 
