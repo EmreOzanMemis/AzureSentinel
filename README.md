@@ -92,8 +92,9 @@ Bu Playbook, kritik güvenlik olayları tespit edildiğinde belirlediğiniz e-po
 
 ## 📚 Ek Kaynaklar
 
-  Azure Sentinel Documentation
-  Kusto Query Language (KQL) Documentation
+  Azure Sentinel Documentation: https://learn.microsoft.com/en-us/azure/sentinel/ 
+  
+  Kusto Query Language (KQL) Documentation: https://learn.microsoft.com/en-us/kusto/query/?view=azure-data-explorer&preserve-view=true
 
 ## 🤝 Katkıda Bulunma
 
